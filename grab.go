@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"time"
 )
+
+const TS_FORMAT = "2006-01-02-150405"
 
 // Map URL to Date String
 var LastModified = make(map[string]string)
@@ -16,9 +19,9 @@ var ETag = make(map[string]string)
 
 func Fetch(spool string) {
 	for _, t := range Targets {
-		println("GET", t.Nick, t.Band, t.URL)
+		log.Println("GET", t.Nick, t.Band, t.URL)
 		filename, status, err := Get(t, spool)
-		println("...", filename, status, err)
+		log.Println("...", status, err, filename)
 	}
 }
 
@@ -53,7 +56,7 @@ func Get(t Target, spool string) (filename string, status int, err error) {
 		}
 		body := buf.Bytes()
 
-		unix := time.Now().Unix()
+		ts := time.Now()
 		lm := resp.Header.Get("Last-Modified")
 		LastModified[t.URL] = lm
 		etag := resp.Header.Get("ETag")
@@ -61,19 +64,21 @@ func Get(t Target, spool string) (filename string, status int, err error) {
 		t1, e1 := time.Parse(time.RFC1123, lm)
 		t2, e2 := time.Parse(time.RFC1123Z, lm)
 		if e1 == nil {
-			unix = t1.Unix()
-			println("Using t1", t1.String(), unix)
+			ts = t1
+			log.Println("Using t1", t1.String())
 		} else if e2 == nil {
-			unix = t2.Unix()
-			println("Using t2", t2.String(), unix)
+			ts = t2
+			log.Println("Using t2", t2.String())
 		}
 
 		dirname := fmt.Sprintf("%s%s.%d.d", spool, t.Nick, t.Band)
 		err = os.MkdirAll(dirname, 0755)
 		if err != nil {
-			panic(err)
+			log.Fatalf("MkdirAll %q failed: %v", dirname, err)
 		}
-		filename := fmt.Sprintf("%s/%s.%d.%010d.jpg", dirname, t.Nick, t.Band, unix)
+
+		timeString := ts.UTC().Format(TS_FORMAT)
+		filename := fmt.Sprintf("%s/%s.%d.%s.jpg", dirname, t.Nick, t.Band, timeString)
 		ioutil.WriteFile(filename, body, 0777)
 
 		return filename, resp.StatusCode, nil
