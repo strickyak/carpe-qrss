@@ -14,11 +14,11 @@ var Targets = []Target{
 	{"wa5djj", 30, "http://qsl.net/wa5djj/hf3.jpg"},
 	{"wa5djj", 20, "http://qsl.net/wa5djj/hf4.jpg"},
 
-	{"wa5djj", 80, "http://qsl.net/wa5djj/mf3.jpg"},
-	{"wa5djj", 17, "http://qsl.net/wa5djj/hf5.jpg"},
-	{"wa5djj", 15, "http://qsl.net/wa5djj/hf6.jpg"},
-	{"wa5djj", 12, "http://qsl.net/wa5djj/hf7.jpg"},
-	{"wa5djj", 10, "http://qsl.net/wa5djj/hf8.jpg"},
+	// {"wa5djj", 80, "http://qsl.net/wa5djj/mf3.jpg"},
+	// {"wa5djj", 17, "http://qsl.net/wa5djj/hf5.jpg"},
+	// {"wa5djj", 15, "http://qsl.net/wa5djj/hf6.jpg"},
+	// {"wa5djj", 12, "http://qsl.net/wa5djj/hf7.jpg"},
+	// {"wa5djj", 10, "http://qsl.net/wa5djj/hf8.jpg"},
 
 	{"wd4elg", 20, "https://dl.dropboxusercontent.com/s/gba72cz0au66032/WD4ELG%2020M%20grabber%20%28REFRESH%20for%20latest%20grab%29.jpg"},
 	{"wd4elg", 30, "https://dl.dropboxusercontent.com/s/7djby65cbfh6hv7/WD4ELG%2030M%20grabber%20%28REFRESH%20for%20latest%20grab%29.jpg"},

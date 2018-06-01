@@ -6,11 +6,13 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"time"
 )
 
 // Map URL to Date String
 var LastModified = make(map[string]string)
+var ETag = make(map[string]string)
 
 func Fetch(spool string) {
 	for _, t := range Targets {
@@ -27,6 +29,11 @@ func Get(t Target, spool string) (filename string, status int, err error) {
 	last, _ := LastModified[t.URL]
 	if last != "" {
 		req.Header.Add("If-Modified-Since", last)
+	} else {
+		etag, _ := ETag[t.URL]
+		if etag != "" {
+			req.Header.Add("If-None-Match", etag)
+		}
 	}
 
 	c := &http.Client{
@@ -49,6 +56,8 @@ func Get(t Target, spool string) (filename string, status int, err error) {
 		unix := time.Now().Unix()
 		lm := resp.Header.Get("Last-Modified")
 		LastModified[t.URL] = lm
+		etag := resp.Header.Get("ETag")
+		ETag[t.URL] = etag
 		t1, e1 := time.Parse(time.RFC1123, lm)
 		t2, e2 := time.Parse(time.RFC1123Z, lm)
 		if e1 == nil {
@@ -59,7 +68,12 @@ func Get(t Target, spool string) (filename string, status int, err error) {
 			println("Using t2", t2.String(), unix)
 		}
 
-		filename := fmt.Sprintf("%s%s.%d.%010d.pic", spool, t.Nick, t.Band, unix)
+		dirname := fmt.Sprintf("%s%s.%d.d", spool, t.Nick, t.Band)
+		err = os.MkdirAll(dirname, 0755)
+		if err != nil {
+			panic(err)
+		}
+		filename := fmt.Sprintf("%s/%s.%d.%010d.jpg", dirname, t.Nick, t.Band, unix)
 		ioutil.WriteFile(filename, body, 0777)
 
 		return filename, resp.StatusCode, nil
