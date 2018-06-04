@@ -14,13 +14,12 @@ func main() {
 	flag.Parse()
 	s := carpe.NewSurvey()
 	s.Walk(*SPOOL)
-	// fmt.Printf("%#v\n", s)
 
 	for k1, v1 := range s.TagDayHash {
 		fmt.Printf("A %q\n", k1)
-		for k2, v2 := range v1 {
+		for k2, v2 := range v1.DayHash {
 			fmt.Printf("B %q %d\n", k1, k2)
-			for k3, v3 := range v2 {
+			for k3, v3 := range v2.Surveys {
 				fmt.Printf("C %q %d %d %#v\n", k1, k2, k3, v3)
 			}
 		}

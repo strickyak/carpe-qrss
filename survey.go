@@ -12,13 +12,24 @@ import (
 	"time"
 )
 
+// For all tags on all days, this is everything.
 type Survey struct {
-	TagDayHash map[string]map[int][]*SurveyRec
+	TagDayHash map[string]*TagSurvey
+}
+
+// For one tag on all days.
+type TagSurvey struct {
+	DayHash map[int]*TagDaySurvey
+}
+
+// For one tag on one day.
+type TagDaySurvey struct {
+	Surveys []*SurveyRec
 }
 
 func NewSurvey() *Survey {
 	return &Survey{
-		TagDayHash: make(map[string]map[int][]*SurveyRec),
+		TagDayHash: make(map[string]*TagSurvey),
 	}
 }
 
@@ -56,10 +67,10 @@ func (o *Survey) Walk(spool string) {
 // Example line:
 // spool/wd4elg.40.d/wd4elg.40.2018-06-02-174220.jpg:       JPEG image data, JFIF standard 1.01, aspect ratio, density 1x1, segment length 16, baseline, precision 8, 1789x997, frames 3
 
-const y4 = "2[0-9][0-9][0-9]"
-const m2 = "-[0-9][0-9]"
-const h6 = "-[0-9][0-9][0-9][0-9][0-9][0-9]"
-const datePattern = y4 + m2 + m2 + h6
+const d4 = "2[0-9][0-9][0-9]"
+const d2 = "-[0-9][0-9]"
+const d6 = "-[0-9][0-9][0-9][0-9][0-9][0-9]"
+const datePattern = d4 + d2 + d2 + d6
 
 const surveryLinePattern = "^([^:]*/([^/:]+)[.]d/([^/:]+)[.](" + datePattern + ")[.]jpg):.*JPEG.*, ([0-9]+)x([0-9]+),.*$"
 
@@ -109,11 +120,18 @@ func (o *Survey) handleSurveyLine(line string) {
 		day := int(unix / 86400)
 		h := o.TagDayHash[tag1]
 		if h == nil {
-			h = make(map[int][]*SurveyRec)
+			h = &TagSurvey{
+				DayHash: make(map[int]*TagDaySurvey),
+			}
 			o.TagDayHash[tag1] = h
 		}
 
-		h[day] = append(h[day], rec)
+		h2 := h.DayHash[day]
+		if h2 == nil {
+			h2 = &TagDaySurvey{}
+			h.DayHash[day] = h2
+		}
+		h2.Surveys = append(h2.Surveys, rec)
 	} else {
 		log.Printf("Failed match: %q", line)
 	}
