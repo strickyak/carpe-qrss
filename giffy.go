@@ -1,4 +1,4 @@
-// +build main
+package carpe
 
 // Thanks to https://github.com/nf/giffy
 // Modified 2018 by Henry Strickland (github.com/strickyak) to use flag and command line arguments, according to the following license.
@@ -19,12 +19,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// This command giffy reads all the JPEG and PNG files from the command line arguments
-// and writes them to an animated GIF as the file named by the -o flag.
-package main
-
 import (
-	"flag"
 	"image"
 	"image/color/palette"
 	"image/draw"
@@ -38,13 +33,8 @@ import (
 	_ "image/png"
 )
 
-var OUT = flag.String("o", "/dev/stdout", "The output gif filename")
-var DELAY = flag.Duration("delay", 100*time.Millisecond, "delay per frame")
-
-func main() {
-	flag.Parse()
+func BuildAnimatedGif(filenames []string, delay time.Duration, outfile string) {
 	var ms []*image.Paletted
-	filenames := flag.Args()
 	for i, n := range filenames {
 		log.Printf("Reading %v [%d/%d]\n", n, i+1, len(filenames))
 		m, err := readImage(n)
@@ -58,20 +48,20 @@ func main() {
 	}
 	ds := make([]int, len(ms))
 	for i := range ds {
-		ds[i] = int(100 * DELAY.Seconds()) // Hundredths of a second.
+		ds[i] = int(100 * delay.Seconds()) // Hundredths of a second.
 	}
-	log.Println("Generating", *OUT)
-	f, err := os.Create(*OUT)
+	log.Println("Generating", outfile)
+	f, err := os.Create(outfile)
 	if err != nil {
-		log.Fatalf("error creating %v: %v", *OUT, err)
+		log.Fatalf("error creating %v: %v", outfile, err)
 	}
 	err = gif.EncodeAll(f, &gif.GIF{Image: ms, Delay: ds, LoopCount: -1})
 	if err != nil {
-		log.Fatalf("error writing %v: %v", *OUT, err)
+		log.Fatalf("error writing %v: %v", outfile, err)
 	}
 	err = f.Close()
 	if err != nil {
-		log.Fatalf("error closing %v: %v", *OUT, err)
+		log.Fatalf("error closing %v: %v", outfile, err)
 	}
 }
 

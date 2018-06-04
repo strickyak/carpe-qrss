@@ -29,3 +29,21 @@ var Targets = []Target{
 	{"zl2ik", 0, "http://zl2ik.com/Argo.jpg"},
 	{"kl7l", 0, "http://kl7l.com/Alaska00000.jpg"},
 }
+
+type CropMargins []int
+type OriginalDim int // encodes (width<<16 + height)
+
+func MakeOriginalDim(width, height int) OriginalDim {
+	return OriginalDim(width<<16 + height)
+}
+
+// Map original (width, height) to (left, right, top, bottom) margins.
+// So far, each different type of image has a different size.
+// We will use that, as long as it works.
+var Crops = map[OriginalDim]CropMargins{
+	MakeOriginalDim(1152, 702): []int{0, 80, 0, 80},   // wa5djj
+	MakeOriginalDim(1000, 696): []int{12, 96, 88, 40}, // kl7l
+	MakeOriginalDim(1235, 686): []int{3, 130, 5, 5},   // kl7l
+	MakeOriginalDim(1226, 721): []int{4, 172, 4, 4},   // ve1vdm
+	MakeOriginalDim(1187, 812): []int{3, 262, 3, 3},   // w4hbk
+}
