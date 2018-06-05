@@ -12,8 +12,8 @@ var SPOOL = flag.String("spool", "spool/", "spool dir prefix")
 
 func main() {
 	flag.Parse()
-	s := carpe.NewSurvey()
-	s.Walk(*SPOOL)
+	s := carpe.NewSurvey(*SPOOL)
+	s.Walk()
 
 	for k1, v1 := range s.TagDayHash {
 		fmt.Printf("A %q\n", k1)
@@ -22,6 +22,8 @@ func main() {
 			for k3, v3 := range v2.Surveys {
 				fmt.Printf("C %q %d %d %#v\n", k1, k2, k3, v3)
 			}
+
 		}
 	}
+	s.BuildMovies("tmp")
 }

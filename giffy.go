@@ -26,6 +26,7 @@ import (
 	"image/gif"
 	"log"
 	"os"
+	"runtime/debug"
 	"time"
 
 	_ "image/gif"
@@ -33,13 +34,20 @@ import (
 	_ "image/png"
 )
 
-func BuildAnimatedGif(filenames []string, delay time.Duration, outfile string) {
+type ImageConverter func(img image.Image, filename string) image.Image
+
+func BuildAnimatedGif(filenames []string, delay time.Duration, converter ImageConverter, outfile string) (failures int) {
 	var ms []*image.Paletted
 	for i, n := range filenames {
 		log.Printf("Reading %v [%d/%d]\n", n, i+1, len(filenames))
 		m, err := readImage(n)
 		if err != nil {
-			log.Fatalf("error reading image: %v: %v", n, err)
+			log.Printf("error reading image: %v: %v", n, err)
+			failures++
+			continue
+		}
+		if converter != nil {
+			m = converter(m, n)
 		}
 		r := m.Bounds()
 		pm := image.NewPaletted(r, palette.Plan9)
@@ -51,26 +59,32 @@ func BuildAnimatedGif(filenames []string, delay time.Duration, outfile string) {
 		ds[i] = int(100 * delay.Seconds()) // Hundredths of a second.
 	}
 	log.Println("Generating", outfile)
-	f, err := os.Create(outfile)
+	fd, err := os.Create(outfile)
 	if err != nil {
-		log.Fatalf("error creating %v: %v", outfile, err)
+		debug.PrintStack()
+		log.Panicf("error creating %v: %v", outfile, err)
 	}
-	err = gif.EncodeAll(f, &gif.GIF{Image: ms, Delay: ds, LoopCount: -1})
+	defer fd.Close()
+	err = gif.EncodeAll(fd, &gif.GIF{Image: ms, Delay: ds, LoopCount: -1})
 	if err != nil {
-		log.Fatalf("error writing %v: %v", outfile, err)
+		debug.PrintStack()
+		log.Panicf("error writing %v: %v", outfile, err)
 	}
-	err = f.Close()
+	err = fd.Close()
 	if err != nil {
-		log.Fatalf("error closing %v: %v", outfile, err)
+		debug.PrintStack()
+		log.Panicf("error closing %v: %v", outfile, err)
 	}
+	log.Printf("Valid inputs: %d; Error inputs: %d; output %q", len(ms), failures, outfile)
+	return
 }
 
 func readImage(name string) (image.Image, error) {
-	f, err := os.Open(name)
+	fd, err := os.Open(name)
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
-	m, _, err := image.Decode(f)
+	defer fd.Close()
+	m, _, err := image.Decode(fd)
 	return m, err
 }
