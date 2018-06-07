@@ -9,11 +9,15 @@ import (
 	carpe "github.com/strickyak/carpe-qrss"
 )
 
-var DELAY = flag.Duration("delay", 300*time.Second, "delay between fetch rounds")
-var SPOOL = flag.String("spool", "/tmp/carpe.", "prefix for created filenames")
+var DELAY = flag.Duration("delay", 8*time.Minute, "delay between fetch rounds")
+var SPOOL = flag.String("spool", "spool/", "prefix for created filenames")
+var BIND = flag.String("bind", ":1919", "where to bind web server")
 
 func main() {
 	flag.Parse()
+
+	carpe.StartWeb(*BIND, *SPOOL)
+
 	for {
 		carpe.Fetch(*SPOOL)
 		println("Sleeping...", DELAY.String())

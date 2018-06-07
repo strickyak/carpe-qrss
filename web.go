@@ -22,6 +22,6 @@ func StartWeb(bind string, spool string) {
 	go func() {
 		log.Printf("ListenAndServe on %q", bind)
 		err := http.ListenAndServe(bind, nil)
-		log.Fatalf("Cannot ListenAndServe: %v: %q", err, bind)
+		log.Fatalf("FATAL: Cannot ListenAndServe: %v: %q", err, bind)
 	}()
 }

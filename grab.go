@@ -19,7 +19,7 @@ var ETag = make(map[string]string)
 
 func Fetch(spool string) {
 	for _, t := range Targets {
-		log.Println("GET", t.Nick, t.Band, t.URL)
+		log.Println("GET", t.Nick, t.URL)
 		filename, status, err := Get(t, spool)
 		log.Println("...", status, err, filename)
 	}
@@ -71,15 +71,20 @@ func Get(t Target, spool string) (filename string, status int, err error) {
 			log.Println("Using t2", t2.String())
 		}
 
-		dirname := fmt.Sprintf("%s%s.%d.d", spool, t.Nick, t.Band)
-		err = os.MkdirAll(dirname, 0755)
+		tmpdir := fmt.Sprintf("%s/tmp.d", spool)
+		err = os.MkdirAll(tmpdir, 0755)
 		if err != nil {
-			log.Fatalf("MkdirAll %q failed: %v", dirname, err)
+			log.Fatalf("MkdirAll %q failed: %v", tmpdir, err)
 		}
 
 		timeString := ts.UTC().Format(TS_FORMAT)
-		filename := fmt.Sprintf("%s/%s.%d.%s.jpg", dirname, t.Nick, t.Band, timeString)
+		filename := fmt.Sprintf("%s/%s.0x0.%s.jpg", tmpdir, t.Nick, timeString)
 		ioutil.WriteFile(filename, body, 0777)
+
+		newname, _ := RenameFileForImageSize(spool, filename)
+		if newname != "" {
+			filename = newname
+		}
 
 		return filename, resp.StatusCode, nil
 	} else {

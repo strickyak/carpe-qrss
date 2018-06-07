@@ -39,5 +39,5 @@ var DELAY = flag.Duration("delay", 100*time.Millisecond, "delay per frame")
 
 func main() {
 	flag.Parse()
-	carpe.BuildAnimatedGif(flag.Args(), *DELAY, nil, *OUT)
+	carpe.BuildAnimatedGif(flag.Args(), *DELAY, nil, *OUT, "")
 }

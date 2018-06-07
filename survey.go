@@ -7,18 +7,29 @@ import (
 	"image"
 	"image/color"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
 	"path"
 	"regexp"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/strickyak/resize"
 	"github.com/strickyak/rxtx/font5x7"
 )
+
+type SurveyRec struct {
+	Filename    string
+	Filesize    int64
+	Tag         string
+	TimeString  string
+	ShapeString string
+	Time        time.Time
+	Width       int
+	Height      int
+}
 
 // For all tags on all days, this is everything.
 type Survey struct {
@@ -41,6 +52,37 @@ func NewSurvey(spool string) *Survey {
 		Spool:      spool,
 		TagDayHash: make(map[string]*TagSurvey),
 	}
+}
+
+func RenameFileForImageSize(spool string, filename string) (string, *SurveyRec) {
+	script := fmt.Sprintf("set -x; file %q", filename)
+	cmd := exec.Command("bash", "-c", script)
+	r, err := cmd.StdoutPipe()
+	if err != nil {
+		log.Panicf("Cannot fork script: %q", script)
+	}
+	cmd.Start()
+
+	bb, err := ioutil.ReadAll(r)
+	if err != nil {
+		log.Panicf("Cannot read script output: %q", script)
+	}
+	result := string(bb)
+
+	rec := ParseSurveyLine(result)
+	if rec == nil {
+		log.Printf("ParseSurveyLine failed on %q", result)
+		return "", nil
+	}
+
+	newdir := fmt.Sprintf("%s/%s~%dx%d.d", spool, rec.Tag, rec.Width, rec.Height)
+	os.MkdirAll(newdir, 0755)
+	newname := fmt.Sprintf("%s/%s.%dx%d.%s.jpg", newdir, rec.Tag, rec.Width, rec.Height, rec.TimeString)
+	err = os.Rename(filename, newname) // If this fails, it probably already had the corect name.
+	if err != nil {
+		log.Printf("Cannot rename %q to %q: %v", filename, newname, err)
+	}
+	return newname, rec
 }
 
 // Survey uses simple shell scripts, so don't have Spaces or Newlines or Exploits or web-user-provided data in the file paths.
@@ -69,7 +111,7 @@ func (o *Survey) Walk() {
 		if err != nil {
 			log.Fatalf("Error reading from StdoutPipe: %v", err)
 		}
-		o.handleSurveyLine(strings.TrimRight(line, "\n"))
+		o.handleSurveyLine(line)
 	}
 }
 
@@ -79,83 +121,87 @@ func (o *Survey) Walk() {
 const d4 = "2[0-9][0-9][0-9]"
 const d2 = "-[0-9][0-9]"
 const d6 = "-[0-9][0-9][0-9][0-9][0-9][0-9]"
-const datePattern = d4 + d2 + d2 + d6
+const datePattern = "(" + d4 + d2 + d2 + d6 + ")"
+const widthHeightPattern = "([0-9]+)x([0-9]+)"
 
-const surveryLinePattern = "^([^:]*/([^/:]+)[.]d/([^/:]+)[.](" + datePattern + ")[.]jpg):.*JPEG.*, ([0-9]+)x([0-9]+),.*$"
+const surveryLinePattern = "^([^:]*/([^/:]+)[.]d/([^/:]+)[.]" + widthHeightPattern + "[.]" + datePattern + "[.]jpg):.*JPEG.*, ([0-9]+)x([0-9]+),.*\n?$"
 
 var surveyLineMatch = regexp.MustCompile(surveryLinePattern).FindStringSubmatch
 
-type SurveyRec struct {
-	Filename   string
-	Filesize   int64
-	Tag        string
-	TimeString string
-	Time       time.Time
-	Width      int
-	Height     int
+func ParseSurveyLine(line string) *SurveyRec {
+	m := surveyLineMatch(line)
+	if m == nil {
+		return nil
+	}
+
+	filename := m[1]
+	dir := m[2]
+	tag := m[3]
+	oldWidth := m[4]
+	oldHeight := m[5]
+	timestamp := m[6]
+	width := m[7]
+	height := m[8]
+	_, _, _ = dir, oldWidth, oldHeight
+
+	fileinfo, err := os.Stat(filename)
+	if err != nil {
+		log.Printf("CANNOT STAT: %q: %v", filename, err)
+		return nil
+	}
+	filesize := fileinfo.Size()
+	if filesize < 512 {
+		log.Printf("Unreasonably small: %q: %d", filename, filesize)
+		return nil
+	}
+
+	w_, _ := strconv.ParseInt(width, 10, 64)
+	h_, _ := strconv.ParseInt(height, 10, 64)
+	rec := &SurveyRec{
+		Filename:   filename,
+		Filesize:   filesize,
+		Tag:        tag,
+		TimeString: timestamp,
+		Width:      int(w_),
+		Height:     int(h_),
+	}
+	const pattern = "2006-01-02-150405"
+	t, err := time.Parse(pattern, timestamp)
+	if err != nil {
+		log.Printf("Cannot parse timestamp: %q: %v", timestamp, err)
+		return nil
+	}
+	rec.Time = t.UTC()
+	return rec
 }
 
 func (o *Survey) handleSurveyLine(line string) {
-	m := surveyLineMatch(line)
-	if m != nil {
-		filename := m[1]
-		tag1 := m[2]
-		tag2 := m[3]
-		timestamp := m[4]
-		width := m[5]
-		height := m[6]
-
-		if tag1 != tag2 {
-			log.Panicf("BAD %q != %q in %q", tag1, tag2, line)
-		}
-
-		fileinfo, err := os.Stat(filename)
-		if err != nil {
-			log.Printf("CANNOT STAT: %q: %v", filename, err)
-		}
-		filesize := fileinfo.Size()
-		if filesize < 512 {
-			log.Printf("Unreasonably small: %q: %d", filename, filesize)
-			return
-		}
-
-		w_, _ := strconv.ParseInt(width, 10, 64)
-		h_, _ := strconv.ParseInt(height, 10, 64)
-		rec := &SurveyRec{
-			Filename:   filename,
-			Filesize:   filesize,
-			Tag:        tag1,
-			TimeString: timestamp,
-			Width:      int(w_),
-			Height:     int(h_),
-		}
-		const pattern = "2006-01-02-150405"
-		t, err := time.Parse(pattern, timestamp)
-		if err != nil {
-			log.Printf("Cannot parse timestamp: %q: %v", timestamp, err)
-			return
-		}
-		t = t.UTC()
-		rec.Time = t
-		unix := t.Unix()
-		day := int(unix / 86400)
-		h := o.TagDayHash[tag1]
-		if h == nil {
-			h = &TagSurvey{
-				DayHash: make(map[int]*TagDaySurvey),
-			}
-			o.TagDayHash[tag1] = h
-		}
-
-		h2 := h.DayHash[day]
-		if h2 == nil {
-			h2 = &TagDaySurvey{}
-			h.DayHash[day] = h2
-		}
-		h2.Surveys = append(h2.Surveys, rec)
-	} else {
-		log.Printf("Failed match: %q", line)
+	rec := ParseSurveyLine(line)
+	if rec == nil {
+		log.Printf("SKIPPING unparsable line: %q", line)
+		return
 	}
+	newname, _ := RenameFileForImageSize(o.Spool, rec.Filename)
+	newname, rec3 := RenameFileForImageSize(o.Spool, newname)
+	rec = rec3
+
+	tag := fmt.Sprintf("%s~%dx%d", rec.Tag, rec.Width, rec.Height)
+	unix := rec.Time.Unix()
+	day := int(unix / 86400)
+	h := o.TagDayHash[tag]
+	if h == nil {
+		h = &TagSurvey{
+			DayHash: make(map[int]*TagDaySurvey),
+		}
+		o.TagDayHash[tag] = h
+	}
+
+	h2 := h.DayHash[day]
+	if h2 == nil {
+		h2 = &TagDaySurvey{}
+		h.DayHash[day] = h2
+	}
+	h2.Surveys = append(h2.Surveys, rec)
 }
 
 func (o *Survey) BuildMovies(prefix string) {
@@ -200,7 +246,7 @@ func (o *Survey) Build1Giffy(inputs []string, tmpname, outname string) (ok bool)
 			ok = false
 		}
 	}()
-	BuildAnimatedGif(inputs, 200*time.Millisecond, o.ConvertToVGA, tmpname)
+	BuildAnimatedGif(inputs, 200*time.Millisecond, o.ConvertToModest, tmpname, tmpname+".mean.png")
 	err := os.Rename(tmpname, outname)
 	if err != nil {
 		log.Panicf("Cannot rename %q to %q: %v", tmpname, outname, err)
@@ -209,14 +255,13 @@ func (o *Survey) Build1Giffy(inputs []string, tmpname, outname string) (ok bool)
 	return
 }
 
-//const WID = 640
-//const HEI = 480
+// A modest size for video frames.
 const WID = 800
 const HEI = 500
 
-var GREEN = image.NewUniform(color.NRGBA{0, 255, 0, 255})
+var GREEN = image.NewUniform(color.NRGBA{20, 200, 20, 255})
 
-func (o *Survey) ConvertToVGA(img image.Image, filename string) image.Image {
+func (o *Survey) ConvertToModest(img image.Image, filename string) image.Image {
 	t := resize.Thumbnail(WID, HEI, img, resize.Bilinear)
 	b := t.Bounds()
 	width := b.Max.X - b.Min.X
