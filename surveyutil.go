@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/strickyak/carpe-qrss"
+	"log"
 )
 
 var SPOOL = flag.String("spool", "spool/", "spool dir prefix")
@@ -26,4 +27,6 @@ func main() {
 		}
 	}
 	s.BuildMovies("tmp")
+	s.CollectGarbage()
+	log.Printf("surveyutil DONE.")
 }

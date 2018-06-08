@@ -43,16 +43,19 @@ func BuildAnimatedGif(filenames []string, delay time.Duration, converter ImageCo
 	var sums []int64
 	var r image.Rectangle
 	var xlen, ylen int
-	for i, n := range filenames {
-		log.Printf("Reading %v [%d/%d]\n", n, i+1, len(filenames))
-		m, err := readImage(n)
+	for i, name := range filenames {
+		log.Printf("Reading %v [%d/%d]\n", name, i+1, len(filenames))
+		m, err := readImage(name)
 		if err != nil {
-			log.Printf("error reading image: %v: %v", n, err)
+			log.Printf("error reading image: %q: %v", name, err)
+			// Remove it, so it won't bother us and mess up the digest again.
+			log.Printf("Removing bad image: %q", name)
+			os.Remove(name)
 			failures++
 			continue
 		}
 		if converter != nil {
-			m = converter(m, n)
+			m = converter(m, name)
 		}
 		r = m.Bounds()
 		pm := image.NewPaletted(r, palette.Plan9)

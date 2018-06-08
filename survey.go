@@ -3,6 +3,7 @@ package carpe
 import (
 	"bufio"
 	"crypto/md5"
+	"flag"
 	"fmt"
 	"image"
 	"image/color"
@@ -11,7 +12,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"path"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"time"
@@ -35,6 +36,8 @@ type SurveyRec struct {
 type Survey struct {
 	Spool      string
 	TagDayHash map[string]*TagSurvey
+	SeenOther  map[string]bool // Seen for mark-and-sweep
+	UsedOther  map[string]bool // Marked for mark-and-sweep
 }
 
 // For one tag on all days.
@@ -51,6 +54,8 @@ func NewSurvey(spool string) *Survey {
 	return &Survey{
 		Spool:      spool,
 		TagDayHash: make(map[string]*TagSurvey),
+		SeenOther:  make(map[string]bool),
+		UsedOther:  make(map[string]bool),
 	}
 }
 
@@ -69,15 +74,15 @@ func RenameFileForImageSize(spool string, filename string) (string, *SurveyRec) 
 	}
 	result := string(bb)
 
-	rec := ParseSurveyLine(result)
+	rec := ParseSurveyLineForOriginal(result)
 	if rec == nil {
-		log.Printf("ParseSurveyLine failed on %q", result)
+		log.Printf("ParseSurveyLineForOriginal failed on %q", result)
 		return "", nil
 	}
 
-	newdir := fmt.Sprintf("%s/%s~%dx%d.d", spool, rec.Tag, rec.Width, rec.Height)
+	newdir := filepath.Clean(fmt.Sprintf("%s/%s~%dx%d.d", spool, rec.Tag, rec.Width, rec.Height))
 	os.MkdirAll(newdir, 0755)
-	newname := fmt.Sprintf("%s/%s.%dx%d.%s.jpg", newdir, rec.Tag, rec.Width, rec.Height, rec.TimeString)
+	newname := filepath.Clean(fmt.Sprintf("%s/%s.%dx%d.%s.jpg", newdir, rec.Tag, rec.Width, rec.Height, rec.TimeString))
 	err = os.Rename(filename, newname) // If this fails, it probably already had the corect name.
 	if err != nil {
 		log.Printf("Cannot rename %q to %q: %v", filename, newname, err)
@@ -94,7 +99,7 @@ func (o *Survey) Walk() {
 	}
 
 	// Sorting just makes things more predictable, for debugging.
-	script := fmt.Sprintf("set -x; find '%s' -type f -name '*.jpg' -print | sort | xargs file", o.Spool)
+	script := fmt.Sprintf("set -x; find '%s' -type f -print | sort | xargs file", o.Spool)
 	cmd := exec.Command("bash", "-c", script)
 	r, err := cmd.StdoutPipe()
 	if err != nil {
@@ -126,9 +131,23 @@ const widthHeightPattern = "([0-9]+)x([0-9]+)"
 
 const surveryLinePattern = "^([^:]*/([^/:]+)[.]d/([^/:]+)[.]" + widthHeightPattern + "[.]" + datePattern + "[.]jpg):.*JPEG.*, ([0-9]+)x([0-9]+),.*\n?$"
 
-var surveyLineMatch = regexp.MustCompile(surveryLinePattern).FindStringSubmatch
+const otherPattern = "^([^:]+[.](gif|png|tmp))[:].*\n?$"
 
-func ParseSurveyLine(line string) *SurveyRec {
+var surveyLineMatch = regexp.MustCompile(surveryLinePattern).FindStringSubmatch
+var otherMatch = regexp.MustCompile(otherPattern).FindStringSubmatch
+
+// Other includes .gif (animated), .png (means), and .tmp (partial downloads).
+func (o *Survey) ParseSurveyLineForOther(line string) bool {
+	m := otherMatch(line)
+	if m == nil {
+		return false
+	}
+	o.SeenOther[m[1]] = true
+	return true
+}
+
+// Originals filenames always end in `.jpg` (regardless of their image type).
+func ParseSurveyLineForOriginal(line string) *SurveyRec {
 	m := surveyLineMatch(line)
 	if m == nil {
 		return nil
@@ -176,8 +195,12 @@ func ParseSurveyLine(line string) *SurveyRec {
 }
 
 func (o *Survey) handleSurveyLine(line string) {
-	rec := ParseSurveyLine(line)
+	rec := ParseSurveyLineForOriginal(line)
 	if rec == nil {
+		if o.ParseSurveyLineForOther(line) {
+			// It was marked in SeenOther[].
+			return
+		}
 		log.Printf("SKIPPING unparsable line: %q", line)
 		return
 	}
@@ -204,6 +227,21 @@ func (o *Survey) handleSurveyLine(line string) {
 	h2.Surveys = append(h2.Surveys, rec)
 }
 
+func (o *Survey) CollectGarbage() {
+	log.Printf("Start CollectGarbage [[[")
+	for filename, _ := range o.SeenOther {
+		used, ok := o.UsedOther[filename]
+		log.Printf("Consider %q (%v, %v)", filename, used, ok)
+		if !ok || !used {
+			log.Printf("Deleting garbage: %q", filename)
+			// os.Remove(filename)
+		}
+	}
+	log.Printf("End CollectGarbage ]]]")
+}
+
+var qM = flag.Bool("qM", false, "DEBUG: quickly skip over movie code")
+
 func (o *Survey) BuildMovies(prefix string) {
 	for k1, v1 := range o.TagDayHash {
 		fmt.Printf("A %q\n", k1)
@@ -222,8 +260,9 @@ func (o *Survey) BuildMovies(prefix string) {
 			}
 			digestStr := fmt.Sprintf("%X", digest.Sum(nil))
 
-			tmpname := fmt.Sprintf("%s/%s.d/%s.%d.%s.tmp", o.Spool, k1, prefix, k2, digestStr)
-			outname := fmt.Sprintf("%s/%s.d/%s.%d.%s.gif", o.Spool, k1, prefix, k2, digestStr)
+			tmpname := filepath.Clean(fmt.Sprintf("%s/%s.d/%s.%d.%s.tmp", o.Spool, k1, prefix, k2, digestStr))
+			outname := filepath.Clean(fmt.Sprintf("%s/%s.d/%s.%d.%s.gif", o.Spool, k1, prefix, k2, digestStr))
+			o.UsedOther[outname] = true // Save from garbage collection.
 
 			_, err := os.Stat(outname)
 			if err == nil {
@@ -232,7 +271,11 @@ func (o *Survey) BuildMovies(prefix string) {
 			}
 
 			log.Printf("Building gif from %d inputs estimatedSize %d (%.3f MiB): %q", len(inputs), estimatedSize, float64(estimatedSize)/1024/1024, outname)
-			o.Build1Giffy(inputs, tmpname, outname)
+			if *qM {
+				log.Printf("qM: not calling o.Build1Giffy")
+			} else {
+				o.Build1Giffy(inputs, tmpname, outname)
+			}
 		}
 	}
 }
@@ -276,7 +319,7 @@ func (o *Survey) ConvertToModest(img image.Image, filename string) image.Image {
 			z.Set(x, y, t.At(x, y))
 		}
 	}
-	for i, ch := range path.Base(filename) {
+	for i, ch := range filepath.Base(filename) {
 		for r := 0; r < 8; r++ {
 			for c := 0; c < 5; c++ {
 				if i*7+c+10 > WID/2-10 {
