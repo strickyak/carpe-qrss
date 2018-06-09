@@ -1,25 +1,22 @@
 package carpe
 
 import (
-	"bufio"
 	"crypto/md5"
 	"flag"
 	"fmt"
 	"image"
 	"image/color"
-	"io"
-	"io/ioutil"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"time"
 
 	"github.com/strickyak/resize"
 	"github.com/strickyak/rxtx/font5x7"
 )
+
+const timestampPattern = "2006-01-02-150405"
 
 type SurveyRec struct {
 	Filename    string
@@ -59,65 +56,19 @@ func NewSurvey(spool string) *Survey {
 	}
 }
 
-func RenameFileForImageSize(spool string, filename string) (string, *SurveyRec) {
-	script := fmt.Sprintf("set -x; file %q", filename)
-	cmd := exec.Command("bash", "-c", script)
-	r, err := cmd.StdoutPipe()
-	if err != nil {
-		log.Panicf("Cannot fork script: %q", script)
-	}
-	cmd.Start()
-
-	bb, err := ioutil.ReadAll(r)
-	if err != nil {
-		log.Panicf("Cannot read script output: %q", script)
-	}
-	result := string(bb)
-
-	rec := ParseSurveyLineForOriginal(result)
-	if rec == nil {
-		log.Printf("ParseSurveyLineForOriginal failed on %q", result)
-		return "", nil
-	}
-
-	newdir := filepath.Clean(fmt.Sprintf("%s/%s~%dx%d.d", spool, rec.Tag, rec.Width, rec.Height))
-	os.MkdirAll(newdir, 0755)
-	newname := filepath.Clean(fmt.Sprintf("%s/%s.%dx%d.%s.jpg", newdir, rec.Tag, rec.Width, rec.Height, rec.TimeString))
-	err = os.Rename(filename, newname) // If this fails, it probably already had the corect name.
-	if err != nil {
-		log.Printf("Cannot rename %q to %q: %v", filename, newname, err)
-	}
-	return newname, rec
-}
-
 // Survey uses simple shell scripts, so don't have Spaces or Newlines or Exploits or web-user-provided data in the file paths.
 func (o *Survey) Walk() {
-	// Insist that the spool ends in '/', so we can use `find`.
+	spoolBeyondSymlink := o.Spool + "/."
+	filepath.Walk(spoolBeyondSymlink, o.WalkFunc)
+}
 
-	if o.Spool[len(o.Spool)-1] != '/' {
-		log.Panicf("Spool must end in '/' to Survey: %q", o.Spool)
-	}
-
-	// Sorting just makes things more predictable, for debugging.
-	script := fmt.Sprintf("set -x; find '%s' -type f -print | sort | xargs file", o.Spool)
-	cmd := exec.Command("bash", "-c", script)
-	r, err := cmd.StdoutPipe()
+func (o *Survey) WalkFunc(filename string, info os.FileInfo, err error) error {
 	if err != nil {
-		log.Panicf("Cannot fork script: %q", script)
+		log.Fatalf("Fatal: WalkFunc gets error for %q: %v", filename, err)
 	}
 
-	r2 := bufio.NewReader(r)
-	cmd.Start()
-	for {
-		line, err := r2.ReadString('\n')
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			log.Fatalf("Error reading from StdoutPipe: %v", err)
-		}
-		o.handleSurveyLine(line)
-	}
+	o.handleSurveyFilename(filename, info)
+	return nil
 }
 
 // Example line:
@@ -129,63 +80,51 @@ const d6 = "-[0-9][0-9][0-9][0-9][0-9][0-9]"
 const datePattern = "(" + d4 + d2 + d2 + d6 + ")"
 const widthHeightPattern = "([0-9]+)x([0-9]+)"
 
-const surveryLinePattern = "^([^:]*/([^/:]+)[.]d/([^/:]+)[.]" + widthHeightPattern + "[.]" + datePattern + "[.]jpg):.*JPEG.*, ([0-9]+)x([0-9]+),.*\n?$"
+const primaryPattern = "^(.+)[.]" + widthHeightPattern + "[.]" + datePattern + "[.]jpg$"
 
-const otherPattern = "^([^:]+[.](gif|png|tmp))[:].*\n?$"
-
-var surveyLineMatch = regexp.MustCompile(surveryLinePattern).FindStringSubmatch
-var otherMatch = regexp.MustCompile(otherPattern).FindStringSubmatch
-
-// Other includes .gif (animated), .png (means), and .tmp (partial downloads).
-func (o *Survey) ParseSurveyLineForOther(line string) bool {
-	m := otherMatch(line)
-	if m == nil {
-		return false
-	}
-	o.SeenOther[m[1]] = true
-	return true
-}
+var primaryMatch = regexp.MustCompile(primaryPattern).FindStringSubmatch
 
 // Originals filenames always end in `.jpg` (regardless of their image type).
-func ParseSurveyLineForOriginal(line string) *SurveyRec {
-	m := surveyLineMatch(line)
-	if m == nil {
-		return nil
-	}
-
-	filename := m[1]
-	dir := m[2]
-	tag := m[3]
-	oldWidth := m[4]
-	oldHeight := m[5]
-	timestamp := m[6]
-	width := m[7]
-	height := m[8]
-	_, _, _ = dir, oldWidth, oldHeight
-
-	fileinfo, err := os.Stat(filename)
+func ParseFilenameForPrimary(filename string, info os.FileInfo) *SurveyRec {
+	fd, err := os.Open(filename)
 	if err != nil {
-		log.Printf("CANNOT STAT: %q: %v", filename, err)
+		log.Printf("ParseFilenameForPrimary cannot open %q: %v", filename, err)
 		return nil
 	}
-	filesize := fileinfo.Size()
+	defer fd.Close()
+	c, _, err := image.DecodeConfig(fd)
+	if err != nil {
+		log.Printf("ParseFilenameForPrimary cannot DecodeConfig %q: %v", filename, err)
+		return nil
+	}
+
+	m := primaryMatch(filepath.Base(filename))
+	if m == nil {
+		log.Printf("ParseFilenameForPrimary cannot regexp match %q: %v", filename, err)
+		return nil
+	}
+
+	tag := m[1]
+	oldWidth := m[2]
+	oldHeight := m[3]
+	timestamp := m[4]
+	_, _ = oldWidth, oldHeight
+
+	filesize := info.Size()
 	if filesize < 512 {
 		log.Printf("Unreasonably small: %q: %d", filename, filesize)
 		return nil
 	}
 
-	w_, _ := strconv.ParseInt(width, 10, 64)
-	h_, _ := strconv.ParseInt(height, 10, 64)
 	rec := &SurveyRec{
 		Filename:   filename,
 		Filesize:   filesize,
 		Tag:        tag,
 		TimeString: timestamp,
-		Width:      int(w_),
-		Height:     int(h_),
+		Width:      c.Width,
+		Height:     c.Height,
 	}
-	const pattern = "2006-01-02-150405"
-	t, err := time.Parse(pattern, timestamp)
+	t, err := time.Parse(timestampPattern, timestamp)
 	if err != nil {
 		log.Printf("Cannot parse timestamp: %q: %v", timestamp, err)
 		return nil
@@ -194,29 +133,27 @@ func ParseSurveyLineForOriginal(line string) *SurveyRec {
 	return rec
 }
 
-func (o *Survey) handleSurveyLine(line string) {
-	rec := ParseSurveyLineForOriginal(line)
+func (o *Survey) handleSurveyFilename(filename string, info os.FileInfo) {
+	if info.IsDir() {
+		return // Don't process directories.
+	}
+
+	rec := ParseFilenameForPrimary(filename, info)
 	if rec == nil {
-		if o.ParseSurveyLineForOther(line) {
-			// It was marked in SeenOther[].
-			return
-		}
-		log.Printf("SKIPPING unparsable line: %q", line)
+		o.SeenOther[filename] = true
+		log.Printf("Not Primary: %q", filename)
 		return
 	}
-	newname, _ := RenameFileForImageSize(o.Spool, rec.Filename)
-	newname, rec3 := RenameFileForImageSize(o.Spool, newname)
-	rec = rec3
 
-	tag := fmt.Sprintf("%s~%dx%d", rec.Tag, rec.Width, rec.Height)
-	unix := rec.Time.Unix()
-	day := int(unix / 86400)
-	h := o.TagDayHash[tag]
+	tagAndShape := fmt.Sprintf("%s~%dx%d", rec.Tag, rec.Width, rec.Height)
+	day := int(rec.Time.Unix() / 86400)
+
+	h := o.TagDayHash[tagAndShape]
 	if h == nil {
 		h = &TagSurvey{
 			DayHash: make(map[int]*TagDaySurvey),
 		}
-		o.TagDayHash[tag] = h
+		o.TagDayHash[tagAndShape] = h
 	}
 
 	h2 := h.DayHash[day]
@@ -232,8 +169,8 @@ func (o *Survey) CollectGarbage() {
 	for filename, _ := range o.SeenOther {
 		used, ok := o.UsedOther[filename]
 		log.Printf("Consider %q (%v, %v)", filename, used, ok)
-		if !ok || !used {
-			log.Printf("Deleting garbage: %q", filename)
+		if !used {
+			log.Printf("NOT // Deleting garbage: %q", filename)
 			// os.Remove(filename)
 		}
 	}
@@ -335,4 +272,28 @@ func (o *Survey) ConvertToModest(img image.Image, filename string) image.Image {
 		}
 	}
 	return z
+}
+
+func RenameFileForImageSize(spool string, filename string) (string, *SurveyRec) {
+	info, err := os.Stat(filename)
+	if err != nil {
+		log.Printf("RenameFileForImageSize cannot stat %q: %v", filename, err)
+	}
+	rec := ParseFilenameForPrimary(filename, info)
+	if rec == nil {
+		log.Printf("ParseFilenameForPrimary failed on %q", filename)
+		return "", nil
+	}
+
+	newdir := filepath.Clean(fmt.Sprintf("%s/%s~%dx%d.d",
+		spool, rec.Tag, rec.Width, rec.Height))
+	os.MkdirAll(newdir, 0755)
+
+	newname := filepath.Clean(fmt.Sprintf("%s/%s.%dx%d.%s.jpg",
+		newdir, rec.Tag, rec.Width, rec.Height, rec.TimeString))
+	err = os.Rename(filename, newname) // If this fails, it probably already had the corect name.
+	if err != nil {
+		log.Printf("Cannot rename %q to %q: %v", filename, newname, err)
+	}
+	return newname, rec
 }
