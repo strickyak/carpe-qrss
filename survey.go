@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"runtime/debug"
 	"time"
 
 	"github.com/strickyak/resize"
@@ -19,9 +20,11 @@ import (
 
 const timestampPattern = "2006-01-02-150405"
 
-func DieIf(err error, args ...string) {
+func DieIf(err error, args ...interface{}) {
 	if err != nil {
-		log.Fatalf("FATAL: %v: %#v", err, args)
+		log.Printf("FATAL...: %v: %#v", err, args)
+		debug.PrintStack()
+		log.Fatalf("...FATAL: %v: %#v", err, args)
 	}
 }
 
@@ -237,6 +240,7 @@ func (o *Survey) BuildMovies(prefix string) {
 }
 
 func (o *Survey) Build1Giffy(inputs []string, tmpname, outname string) (ok bool) {
+	runtime.Gosched()
 	ok = true
 	defer func() {
 		r := recover()
@@ -244,6 +248,7 @@ func (o *Survey) Build1Giffy(inputs []string, tmpname, outname string) (ok bool)
 			log.Printf("Recovering after panic in BuildAnimatedGif %q: %v", outname, r)
 			ok = false
 		}
+		runtime.Gosched()
 	}()
 	BuildAnimatedGif(inputs, 200*time.Millisecond, o.ConvertToModest, tmpname, tmpname+".mean.png")
 	err := os.Rename(tmpname, outname)
@@ -259,6 +264,7 @@ const HEI = 500
 var GREEN = image.NewUniform(color.NRGBA{20, 200, 20, 255})
 
 func (o *Survey) ConvertToModest(img image.Image, filename string) image.Image {
+	runtime.Gosched()
 	t := resize.Thumbnail(WID, HEI, img, resize.Bilinear)
 	b := t.Bounds()
 	width := b.Max.X - b.Min.X
@@ -292,6 +298,7 @@ func (o *Survey) ConvertToModest(img image.Image, filename string) image.Image {
 }
 
 func RenameFileForImageSize(spool string, filename string) (string, *SurveyRec) {
+	runtime.Gosched()
 	info, err := os.Stat(filename)
 	if err != nil {
 		log.Printf("RenameFileForImageSize cannot stat %q: %v", filename, err)

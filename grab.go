@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"runtime"
 	"time"
 )
 
@@ -18,14 +19,17 @@ var LastModified = make(map[string]string)
 var ETag = make(map[string]string)
 
 func Fetch(spool string) {
+	runtime.Gosched()
 	for _, t := range Targets {
 		log.Println("GET", t.Nick, t.URL)
 		filename, status, err := Get(t, spool)
 		log.Println("...", status, err, filename)
 	}
+	runtime.Gosched()
 }
 
 func Get(t Target, spool string) (filename string, status int, err error) {
+	runtime.Gosched()
 	req, err := http.NewRequest("GET", t.URL, nil /*empty -- body io.Reader*/)
 	req.Header.Add("User-Agent", "github.com/strickyak/carpe-qrss")
 
@@ -44,6 +48,7 @@ func Get(t Target, spool string) (filename string, status int, err error) {
 	}
 
 	resp, err := c.Do(req)
+	runtime.Gosched()
 	if err != nil {
 		return "", 418, err
 	}

@@ -28,6 +28,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"runtime/debug"
 	"time"
 
@@ -44,6 +45,7 @@ func BuildAnimatedGif(filenames []string, delay time.Duration, converter ImageCo
 	var r image.Rectangle
 	var xlen, ylen int
 	for i, name := range filenames {
+		runtime.Gosched()
 		log.Printf("Reading %v [%d/%d]\n", name, i+1, len(filenames))
 		m, err := readImage(name)
 		if err != nil {
@@ -59,7 +61,9 @@ func BuildAnimatedGif(filenames []string, delay time.Duration, converter ImageCo
 		}
 		r = m.Bounds()
 		pm := image.NewPaletted(r, palette.Plan9)
+		runtime.Gosched()
 		draw.FloydSteinberg.Draw(pm, r, m, image.ZP)
+		runtime.Gosched()
 		ms = append(ms, pm)
 
 		xlen = r.Max.X - r.Min.X
@@ -100,7 +104,9 @@ func BuildAnimatedGif(filenames []string, delay time.Duration, converter ImageCo
 
 		os.MkdirAll(filepath.Dir(outmean), 0755)
 		fd, _ := os.Create(outmean)
+		runtime.Gosched()
 		png.Encode(fd, pm)
+		runtime.Gosched()
 		fd.Close()
 	}
 
@@ -116,7 +122,9 @@ func BuildAnimatedGif(filenames []string, delay time.Duration, converter ImageCo
 		log.Panicf("error creating %v: %v", outfile, err)
 	}
 	defer fd.Close()
+	runtime.Gosched()
 	err = gif.EncodeAll(fd, &gif.GIF{Image: ms, Delay: ds, LoopCount: -1})
+	runtime.Gosched()
 	if err != nil {
 		debug.PrintStack()
 		log.Panicf("error writing %v: %v", outfile, err)
