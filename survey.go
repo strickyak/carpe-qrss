@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"time"
 
 	"github.com/strickyak/resize"
@@ -17,6 +18,12 @@ import (
 )
 
 const timestampPattern = "2006-01-02-150405"
+
+func DieIf(err error, args ...string) {
+	if err != nil {
+		log.Fatalf("FATAL: %v: %#v", err, args)
+	}
+}
 
 type SurveyRec struct {
 	Filename    string
@@ -63,6 +70,7 @@ func (o *Survey) Walk() {
 }
 
 func (o *Survey) WalkFunc(filename string, info os.FileInfo, err error) error {
+	runtime.Gosched()
 	if err != nil {
 		log.Fatalf("Fatal: WalkFunc gets error for %q: %v", filename, err)
 	}
@@ -164,14 +172,25 @@ func (o *Survey) handleSurveyFilename(filename string, info os.FileInfo) {
 	h2.Surveys = append(h2.Surveys, rec)
 }
 
+const GC_GRACE_HOURS = 24
+
 func (o *Survey) CollectGarbage() {
 	log.Printf("Start CollectGarbage [[[")
 	for filename, _ := range o.SeenOther {
+		runtime.Gosched()
 		used, ok := o.UsedOther[filename]
 		log.Printf("Consider %q (%v, %v)", filename, used, ok)
 		if !used {
-			log.Printf("NOT // Deleting garbage: %q", filename)
-			// os.Remove(filename)
+			info, err := os.Stat(filename)
+			DieIf(err, "stat", filename)
+			hoursOld := time.Since(info.ModTime()).Hours()
+			if hoursOld < GC_GRACE_HOURS {
+				log.Printf("Grace for %q; age is %v hours", filename, hoursOld)
+				continue // Grace time, keep garbage 24 hours.
+			}
+			log.Printf("Removing garbage: %q", filename)
+			err = os.Remove(filename)
+			DieIf(err, "remove", filename)
 		}
 	}
 	log.Printf("End CollectGarbage ]]]")
@@ -228,10 +247,8 @@ func (o *Survey) Build1Giffy(inputs []string, tmpname, outname string) (ok bool)
 	}()
 	BuildAnimatedGif(inputs, 200*time.Millisecond, o.ConvertToModest, tmpname, tmpname+".mean.png")
 	err := os.Rename(tmpname, outname)
-	if err != nil {
-		log.Panicf("Cannot rename %q to %q: %v", tmpname, outname, err)
-	}
-	log.Printf("Renamed to %q", outname)
+	DieIf(err, "rename", tmpname, outname)
+	log.Printf("Renamed Gif to ===>  %q  <===", outname)
 	return
 }
 
