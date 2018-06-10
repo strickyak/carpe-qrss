@@ -3,10 +3,11 @@
 package main
 
 import (
+	"bufio"
 	"flag"
-	"fmt"
 	"github.com/strickyak/carpe-qrss"
 	"log"
+	"os"
 )
 
 var SPOOL = flag.String("spool", "spool/", "spool dir prefix")
@@ -16,17 +17,14 @@ func main() {
 	s := carpe.NewSurvey(*SPOOL)
 	s.Walk()
 
-	for k1, v1 := range s.TagDayHash {
-		fmt.Printf("A %q\n", k1)
-		for k2, v2 := range v1.DayHash {
-			fmt.Printf("B %q %d\n", k1, k2)
-			for k3, v3 := range v2.Surveys {
-				fmt.Printf("C %q %d %d %#v\n", k1, k2, k3, v3)
-			}
-
-		}
-	}
 	s.BuildMovies("tmp")
 	s.CollectGarbage()
+	// s.DumpProducts(os.Stderr)
+	fd, err := os.Create(*SPOOL + "/index.html")
+	carpe.DieIf(err, "os.Create", *SPOOL+"/index.html")
+	w := bufio.NewWriter(fd)
+	s.WriteWebPage(w)
+	w.Flush()
+	fd.Close()
 	log.Printf("surveyutil DONE.")
 }

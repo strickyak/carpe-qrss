@@ -6,12 +6,15 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"io"
 	"log"
 	"os"
-	"path/filepath"
+	P "path/filepath"
 	"regexp"
 	"runtime"
 	"runtime/debug"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/strickyak/resize"
@@ -47,9 +50,15 @@ type Survey struct {
 	UsedOther  map[string]bool // Marked for mark-and-sweep
 }
 
+type Products struct {
+	MovieName string
+	MeanName  string
+}
+
 // For one tag on all days.
 type TagSurvey struct {
-	DayHash map[int]*TagDaySurvey
+	DayHash  map[int]*TagDaySurvey
+	Products map[int]Products // int is Days Ago, 0 is today.
 }
 
 // For one tag on one day.
@@ -69,7 +78,7 @@ func NewSurvey(spool string) *Survey {
 // Survey uses simple shell scripts, so don't have Spaces or Newlines or Exploits or web-user-provided data in the file paths.
 func (o *Survey) Walk() {
 	spoolBeyondSymlink := o.Spool + "/."
-	filepath.Walk(spoolBeyondSymlink, o.WalkFunc)
+	P.Walk(spoolBeyondSymlink, o.WalkFunc)
 }
 
 func (o *Survey) WalkFunc(filename string, info os.FileInfo, err error) error {
@@ -109,7 +118,7 @@ func ParseFilenameForPrimary(filename string, info os.FileInfo) *SurveyRec {
 		return nil
 	}
 
-	m := primaryMatch(filepath.Base(filename))
+	m := primaryMatch(P.Base(filename))
 	if m == nil {
 		log.Printf("ParseFilenameForPrimary cannot regexp match %q: %v", filename, err)
 		return nil
@@ -162,7 +171,8 @@ func (o *Survey) handleSurveyFilename(filename string, info os.FileInfo) {
 	h := o.TagDayHash[tagAndShape]
 	if h == nil {
 		h = &TagSurvey{
-			DayHash: make(map[int]*TagDaySurvey),
+			DayHash:  make(map[int]*TagDaySurvey),
+			Products: make(map[int]Products),
 		}
 		o.TagDayHash[tagAndShape] = h
 	}
@@ -202,12 +212,14 @@ func (o *Survey) CollectGarbage() {
 var qM = flag.Bool("qM", false, "DEBUG: quickly skip over movie code")
 
 func (o *Survey) BuildMovies(prefix string) {
+	todaysDay := int(time.Now().Unix()) / 86400
 	for k1, v1 := range o.TagDayHash {
-		fmt.Printf("A %q\n", k1)
 		for k2, v2 := range v1.DayHash {
-			if len(v2.Surveys) < 2 {
+			if len(v2.Surveys) < 1 {
 				continue
 			}
+
+			daysAgo := todaysDay - k2
 
 			var estimatedSize int64
 			digest := md5.New()
@@ -219,41 +231,49 @@ func (o *Survey) BuildMovies(prefix string) {
 			}
 			digestStr := fmt.Sprintf("%X", digest.Sum(nil))
 
-			tmpname := filepath.Clean(fmt.Sprintf("%s/%s.d/%s.%d.%s.tmp", o.Spool, k1, prefix, k2, digestStr))
-			outname := filepath.Clean(fmt.Sprintf("%s/%s.d/%s.%d.%s.gif", o.Spool, k1, prefix, k2, digestStr))
-			o.UsedOther[outname] = true // Save from garbage collection.
+			tmpgif := P.Clean(fmt.Sprintf("%s/%s.d/%s.%d.%s.tmp", o.Spool, k1, prefix, k2, digestStr))
+			gifname := P.Clean(fmt.Sprintf("%s/%s.d/%s.%d.%s.gif", o.Spool, k1, prefix, k2, digestStr))
+			meanname := P.Clean(fmt.Sprintf("%s/%s.d/%s.%d.%s.png", o.Spool, k1, prefix, k2, digestStr))
+			o.UsedOther[gifname] = true // Save from garbage collection.
 
-			_, err := os.Stat(outname)
+			v1.Products[daysAgo] = Products{
+				MovieName: gifname,
+				MeanName:  meanname,
+			}
+			//v1.Products[daysAgo].MovieName = gifname
+			//v1.Products[daysAgo].MeanName = meanname
+
+			_, err := os.Stat(gifname)
 			if err == nil {
-				log.Printf("Already exists: %q", outname)
+				log.Printf("Already exists: %q", gifname)
 				continue
 			}
 
-			log.Printf("Building gif from %d inputs estimatedSize %d (%.3f MiB): %q", len(inputs), estimatedSize, float64(estimatedSize)/1024/1024, outname)
+			log.Printf("Building gif from %d inputs estimatedSize %d (%.3f MiB): %q", len(inputs), estimatedSize, float64(estimatedSize)/1024/1024, gifname)
 			if *qM {
 				log.Printf("qM: not calling o.Build1Giffy")
 			} else {
-				o.Build1Giffy(inputs, tmpname, outname)
+				o.Build1Giffy(inputs, tmpgif, gifname, meanname)
 			}
 		}
 	}
 }
 
-func (o *Survey) Build1Giffy(inputs []string, tmpname, outname string) (ok bool) {
+func (o *Survey) Build1Giffy(inputs []string, tmpgif, gifname, meanname string) (ok bool) {
 	runtime.Gosched()
 	ok = true
 	defer func() {
 		r := recover()
 		if r != nil {
-			log.Printf("Recovering after panic in BuildAnimatedGif %q: %v", outname, r)
+			log.Printf("Recovering after panic in BuildAnimatedGif %q: %v", gifname, r)
 			ok = false
 		}
 		runtime.Gosched()
 	}()
-	BuildAnimatedGif(inputs, 200*time.Millisecond, o.ConvertToModest, tmpname, tmpname+".mean.png")
-	err := os.Rename(tmpname, outname)
-	DieIf(err, "rename", tmpname, outname)
-	log.Printf("Renamed Gif to ===>  %q  <===", outname)
+	BuildAnimatedGif(inputs, 200*time.Millisecond, o.ConvertToModest, tmpgif, meanname)
+	err := os.Rename(tmpgif, gifname)
+	DieIf(err, "rename", tmpgif, gifname)
+	log.Printf("Renamed Gif to ===>  %q  <===", gifname)
 	return
 }
 
@@ -279,7 +299,7 @@ func (o *Survey) ConvertToModest(img image.Image, filename string) image.Image {
 			z.Set(x, y, t.At(x, y))
 		}
 	}
-	for i, ch := range filepath.Base(filename) {
+	for i, ch := range P.Base(filename) {
 		for r := 0; r < 8; r++ {
 			for c := 0; c < 5; c++ {
 				if i*7+c+10 > WID/2-10 {
@@ -309,15 +329,129 @@ func RenameFileForImageSize(spool string, filename string) (string, *SurveyRec) 
 		return "", nil
 	}
 
-	newdir := filepath.Clean(fmt.Sprintf("%s/%s~%dx%d.d",
+	newdir := P.Clean(fmt.Sprintf("%s/%s~%dx%d.d",
 		spool, rec.Tag, rec.Width, rec.Height))
 	os.MkdirAll(newdir, 0755)
 
-	newname := filepath.Clean(fmt.Sprintf("%s/%s.%dx%d.%s.jpg",
+	newname := P.Clean(fmt.Sprintf("%s/%s.%dx%d.%s.jpg",
 		newdir, rec.Tag, rec.Width, rec.Height, rec.TimeString))
 	err = os.Rename(filename, newname) // If this fails, it probably already had the corect name.
 	if err != nil {
 		log.Printf("Cannot rename %q to %q: %v", filename, newname, err)
 	}
 	return newname, rec
+}
+
+func (o *Survey) DumpProducts(w io.Writer) {
+	for k1, k2 := range o.TagDayHash {
+		fmt.Fprintf(w, "TAG: %q\n", k1)
+
+		for i := 0; i < 14; i++ {
+			p, ok := k2.Products[i]
+			if !ok {
+				continue
+			}
+			movie := p.MovieName
+			mean := p.MeanName
+			fmt.Fprintf(w, "    [%2d] Movie: %q\n", i, movie)
+			fmt.Fprintf(w, "    [%2d] Mean:  %q\n", i, mean)
+		}
+	}
+}
+
+func (o *Survey) SortedWebTags() []string {
+	var tags []string
+	for k1, k2 := range o.TagDayHash {
+		active := false
+		for i := 0; i < 32; i++ {
+			p, ok := k2.Products[i]
+			if ok && (p.MovieName != "" || p.MeanName != "") {
+				active = true
+				break
+			}
+		}
+		if active {
+			tags = append(tags, k1)
+		}
+	}
+	sort.Strings(tags)
+	return tags
+}
+
+func (o *Survey) WriteWebPage(w io.Writer) {
+	fmt.Fprintf(w, `<html>
+<head>
+  <title>Carpe QRSS: %s</title>
+</head>
+<body>
+
+<p>
+  <b>This is Alpha quality.</b>
+  I'm debugging with a small set of QRSS Grabber sources.
+  I'll add more later.
+  For each source, data is grouped by Zulu day.
+  For each source on each day, there are two images, composed of frames
+  which are images seized from qrss grabbers.
+  The image on the left is the average of all the frames;
+  the one on the right is an animated GIF made up of all the frames.
+  A caption in green tells what the source was, prehaps the band,
+  and roughly what time the image was made or seized.
+<p> 
+  <b>All times and dates are Zulu.</b>
+<p> 
+  Source is at <a href="https://github.com/strickyak/carpe-qrss">https://github.com/strickyak/carpe-qrss</a>.
+  Site hosted in Digital Ocean.
+<p>
+<br>
+<br>
+`, time.Now().Format(time.UnixDate))
+	tags := o.SortedWebTags()
+	for _, tag := range tags {
+		fmt.Fprintf(w, "[<a href='#%s'>%s</a>] &nbsp;\n", tag, tag)
+	}
+	fmt.Fprintf(w, `<p><br><br>\n`)
+
+	fmt.Fprintf(w, `
+<table cellpadding=5 border=1>
+  <tr>
+    <th>Days<br>Ago</th>
+    <th align=center>RGB-wise Average of Frames</th>
+    <th align=center>Animated GIF of Frames</th>
+  </tr>
+`)
+
+	for _, tag := range tags {
+		shortTag := strings.Split(tag, "~")[0]
+		fmt.Fprintf(w, `
+  <tr>
+    <th>Days<br>Ago</th>
+    <th colspan=2 align=center><a name="%s"><tt> <big><big><big>%s &nbsp; &nbsp; </big></big></big> %q </tt></a></th>
+  </tr>
+`, tag, shortTag, tag)
+
+		v1 := o.TagDayHash[tag]
+		n := 0
+		for i := 0; i < 30; i++ {
+			p, ok := v1.Products[i]
+			if !ok {
+				continue
+			}
+			movie := p.MovieName
+			mean := p.MeanName
+			fmt.Fprintf(w, `
+  <tr>
+    <th align=center ><big>%d</big></th>
+    <td><img src="%s/%s"></td>
+    <td><img src="%s/%s"></td>
+  <tr>
+`, i, P.Base(P.Dir(mean)), P.Base(mean), P.Base(P.Dir(movie)), P.Base(movie))
+			n++
+			if n > 4 {
+				break
+			}
+		}
+	}
+	fmt.Fprintf(w, `
+</body></html>
+`)
 }

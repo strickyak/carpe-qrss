@@ -39,7 +39,7 @@ import (
 
 type ImageConverter func(img image.Image, filename string) image.Image
 
-func BuildAnimatedGif(filenames []string, delay time.Duration, converter ImageConverter, outfile string, outmean string) (failures int) {
+func BuildAnimatedGif(filenames []string, delay time.Duration, converter ImageConverter, outgif string, outmean string) (failures int) {
 	var ms []*image.Paletted
 	var sums []int64
 	var r image.Rectangle
@@ -114,12 +114,12 @@ func BuildAnimatedGif(filenames []string, delay time.Duration, converter ImageCo
 	for i := range ds {
 		ds[i] = int(100 * delay.Seconds()) // Hundredths of a second.
 	}
-	log.Println("Generating", outfile)
-	os.MkdirAll(filepath.Dir(outfile), 0755)
-	fd, err := os.Create(outfile)
+	log.Println("Generating", outgif)
+	os.MkdirAll(filepath.Dir(outgif), 0755)
+	fd, err := os.Create(outgif)
 	if err != nil {
 		debug.PrintStack()
-		log.Panicf("error creating %v: %v", outfile, err)
+		log.Panicf("error creating %v: %v", outgif, err)
 	}
 	defer fd.Close()
 	runtime.Gosched()
@@ -127,14 +127,14 @@ func BuildAnimatedGif(filenames []string, delay time.Duration, converter ImageCo
 	runtime.Gosched()
 	if err != nil {
 		debug.PrintStack()
-		log.Panicf("error writing %v: %v", outfile, err)
+		log.Panicf("error writing %v: %v", outgif, err)
 	}
 	err = fd.Close()
 	if err != nil {
 		debug.PrintStack()
-		log.Panicf("error closing %v: %v", outfile, err)
+		log.Panicf("error closing %v: %v", outgif, err)
 	}
-	log.Printf("Valid inputs: %d; Error inputs: %d; output %q", len(ms), failures, outfile)
+	log.Printf("Valid inputs: %d; Error inputs: %d; output %q", len(ms), failures, outgif)
 	return
 }
 
