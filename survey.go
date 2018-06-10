@@ -381,6 +381,7 @@ func (o *Survey) SortedWebTags() []string {
 func (o *Survey) WriteWebPage(w io.Writer) {
 	fmt.Fprintf(w, `<html>
 <head>
+  <META NAME="ROBOTS" CONTENT="INDEX, NOFOLLOW">
   <title>Carpe QRSS: %s</title>
 </head>
 <body>
@@ -396,11 +397,13 @@ func (o *Survey) WriteWebPage(w io.Writer) {
   the one on the right is an animated GIF made up of all the frames.
   A caption in green tells what the source was, prehaps the band,
   and roughly what time the image was made or seized.
-<p> 
+<p>
   <b>All times and dates are Zulu.</b>
-<p> 
+<p>
   Source is at <a href="https://github.com/strickyak/carpe-qrss">https://github.com/strickyak/carpe-qrss</a>.
   Site hosted in Digital Ocean.
+<p>
+  -- 73 de W6REK
 <p>
 <br>
 <br>
