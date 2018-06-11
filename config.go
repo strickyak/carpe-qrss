@@ -13,11 +13,11 @@ var Targets = []Target{
 	{"wa5djj_30", "http://qsl.net/wa5djj/hf3.jpg"},
 	{"wa5djj_20", "http://qsl.net/wa5djj/hf4.jpg"},
 
-	// {"wa5djj_80", "http://qsl.net/wa5djj/mf3.jpg"},
-	// {"wa5djj_17", "http://qsl.net/wa5djj/hf5.jpg"},
-	// {"wa5djj_15", "http://qsl.net/wa5djj/hf6.jpg"},
-	// {"wa5djj_12", "http://qsl.net/wa5djj/hf7.jpg"},
-	// {"wa5djj_10", "http://qsl.net/wa5djj/hf8.jpg"},
+	{"wa5djj_80", "http://qsl.net/wa5djj/mf3.jpg"},
+	{"wa5djj_17", "http://qsl.net/wa5djj/hf5.jpg"},
+	{"wa5djj_15", "http://qsl.net/wa5djj/hf6.jpg"},
+	{"wa5djj_12", "http://qsl.net/wa5djj/hf7.jpg"},
+	{"wa5djj_10", "http://qsl.net/wa5djj/hf8.jpg"},
 
 	// {"wd4elg_20", "https://dl.dropboxusercontent.com/s/gba72cz0au66032/WD4ELG%2020M%20grabber%20%28REFRESH%20for%20latest%20grab%29.jpg"},
 	// {"wd4elg_30", "https://dl.dropboxusercontent.com/s/7djby65cbfh6hv7/WD4ELG%2030M%20grabber%20%28REFRESH%20for%20latest%20grab%29.jpg"},
@@ -27,6 +27,22 @@ var Targets = []Target{
 	{"ve1vdm", "http://users.eastlink.ca/~ve1vdm/argocaptures/argo.jpg"},
 	{"zl2ik", "http://zl2ik.com/Argo.jpg"},
 	{"kl7l", "http://kl7l.com/Alaska00000.jpg"},
+
+	// Part-time 630m grabber:
+	{"tg6ajr", "http://qsl.net/tg9ajr/argo/mf1.gif"},
+
+	// Holywell, Northumberland, IO95FB
+	{"g3vyz_1", "http://www.holywell44.com/qrss/qrss_.jpg"},
+	{"g3vyz_2", "http://www.holywell44.com/qrss/qrss_2.jpg"},
+	{"g3vyz_3", "http://www.holywell44.com/qrss/qrss_3.jpg"},
+	{"g3vyz_4", "http://www.holywell44.com/qrss/qrss_4.jpg"},
+	{"g3vyz_5", "http://www.holywell44.com/qrss/qrss_5.jpg"},
+
+	// Gran Canaria Island (locator IL28fd)
+	{"ea8bvp", "http://www.qsl.net/ea8bvp/hf1.jpg"},
+	{"ea8bvp_4h", "http://www.qsl.net/ea8bvp/hf2.jpg"},
+
+	{"la5goa", "http://la5goa.manglet.net/grabber/lopshot1.jpg"},
 }
 
 type CropMargins []int
