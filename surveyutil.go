@@ -23,7 +23,14 @@ func main() {
 	fd, err := os.Create(*SPOOL + "/index.html")
 	carpe.DieIf(err, "os.Create", *SPOOL+"/index.html")
 	w := bufio.NewWriter(fd)
+
 	s.WriteWebPage(w)
+	//for i := 0; i < 3; i++ {
+	// s.WriteWebPageForDay(w, i)
+	////}
+	//s.WriteWebPageForDay(w, 0)
+	//s.WriteWebPageForDay(w, 1)
+
 	w.Flush()
 	fd.Close()
 	log.Printf("surveyutil DONE.")

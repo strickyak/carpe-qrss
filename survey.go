@@ -11,15 +11,17 @@ import (
 	"os"
 	P "path/filepath"
 	"regexp"
-	"runtime"
 	"runtime/debug"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/strickyak/resize"
 	"github.com/strickyak/rxtx/font5x7"
 )
+
+const WHOM = "W6REK"
 
 const timestampPattern = "2006-01-02-150405"
 
@@ -51,14 +53,16 @@ type Survey struct {
 }
 
 type Products struct {
-	MovieName string
-	MeanName  string
+	MovieName    string
+	MovieModTime time.Time
+	MeanName     string
+	MeanModTime  time.Time
 }
 
 // For one tag on all days.
 type TagSurvey struct {
-	DayHash  map[int]*TagDaySurvey
-	Products map[int]Products // int is Days Ago, 0 is today.
+	DayHash     map[int]*TagDaySurvey
+	NewProducts map[int]Products // int is Days Ago, 0 is today.
 }
 
 // For one tag on one day.
@@ -82,9 +86,11 @@ func (o *Survey) Walk() {
 }
 
 func (o *Survey) WalkFunc(filename string, info os.FileInfo, err error) error {
-	runtime.Gosched()
 	if err != nil {
 		log.Fatalf("Fatal: WalkFunc gets error for %q: %v", filename, err)
+	}
+	if info.IsDir() {
+		return nil // Not necessary to visit directories.
 	}
 
 	o.handleSurveyFilename(filename, info)
@@ -158,6 +164,16 @@ func (o *Survey) handleSurveyFilename(filename string, info os.FileInfo) {
 		return // Don't process directories.
 	}
 
+	/*
+		dir := P.Dir(filename)
+		base := P.Base(filename)
+
+		if strings.HasSuffix(filename, ".png") {
+			// Keep the newer one.
+			if info.ModTime().After(MeanModTime....)...ddt
+		}
+	*/
+
 	rec := ParseFilenameForPrimary(filename, info)
 	if rec == nil {
 		o.SeenOther[filename] = true
@@ -171,8 +187,8 @@ func (o *Survey) handleSurveyFilename(filename string, info os.FileInfo) {
 	h := o.TagDayHash[tagAndShape]
 	if h == nil {
 		h = &TagSurvey{
-			DayHash:  make(map[int]*TagDaySurvey),
-			Products: make(map[int]Products),
+			DayHash:     make(map[int]*TagDaySurvey),
+			NewProducts: make(map[int]Products),
 		}
 		o.TagDayHash[tagAndShape] = h
 	}
@@ -190,7 +206,6 @@ const GC_GRACE_HOURS = 24
 func (o *Survey) CollectGarbage() {
 	log.Printf("Start CollectGarbage [[[")
 	for filename, _ := range o.SeenOther {
-		runtime.Gosched()
 		used, ok := o.UsedOther[filename]
 		log.Printf("Consider %q (%v, %v)", filename, used, ok)
 		if !used {
@@ -212,55 +227,79 @@ func (o *Survey) CollectGarbage() {
 var qM = flag.Bool("qM", false, "DEBUG: quickly skip over movie code")
 
 func (o *Survey) BuildMovies(prefix string) {
+	var mutex sync.Mutex
+	done := make(chan string)
+
 	todaysDay := int(time.Now().Unix()) / 86400
 	for k1, v1 := range o.TagDayHash {
 		for k2, v2 := range v1.DayHash {
-			if len(v2.Surveys) < 1 {
-				continue
-			}
+			go func(k1 string, v1 *TagSurvey, k2 int, v2 *TagDaySurvey) {
+				task := fmt.Sprintf("%s:%d", k1, k2)
+				log.Printf("Task Starting: %s", task)
 
-			daysAgo := todaysDay - k2
+				if len(v2.Surveys) < 1 {
+					done <- task
+					return
+				}
 
-			var estimatedSize int64
-			digest := md5.New()
-			var inputs []string
-			for _, v := range v2.Surveys {
-				inputs = append(inputs, v.Filename)
-				digest.Write([]byte(v.Filename))
-				estimatedSize += v.Filesize
-			}
-			digestStr := fmt.Sprintf("%X", digest.Sum(nil))
+				daysAgo := todaysDay - k2
 
-			tmpgif := P.Clean(fmt.Sprintf("%s/%s.d/%s.%d.%s.tmp", o.Spool, k1, prefix, k2, digestStr))
-			gifname := P.Clean(fmt.Sprintf("%s/%s.d/%s.%d.%s.gif", o.Spool, k1, prefix, k2, digestStr))
-			meanname := P.Clean(fmt.Sprintf("%s/%s.d/%s.%d.%s.png", o.Spool, k1, prefix, k2, digestStr))
-			o.UsedOther[gifname] = true // Save from garbage collection.
+				var estimatedSize int64
+				digest := md5.New()
+				var inputs []string
+				for _, v := range v2.Surveys {
+					inputs = append(inputs, v.Filename)
+					digest.Write([]byte(v.Filename))
+					estimatedSize += v.Filesize
+				}
+				digestStr := fmt.Sprintf("%X", digest.Sum(nil))
 
-			v1.Products[daysAgo] = Products{
-				MovieName: gifname,
-				MeanName:  meanname,
-			}
-			//v1.Products[daysAgo].MovieName = gifname
-			//v1.Products[daysAgo].MeanName = meanname
+				tmpgif := P.Clean(fmt.Sprintf("%s/%s.d/%s.%d.%s.tmp", o.Spool, k1, prefix, k2, digestStr))
+				gifname := P.Clean(fmt.Sprintf("%s/%s.d/%s.%d.%s.gif", o.Spool, k1, prefix, k2, digestStr))
+				meanname := P.Clean(fmt.Sprintf("%s/%s.d/%s.%d.%s.png", o.Spool, k1, prefix, k2, digestStr))
+				mutex.Lock()
+				{
+					o.UsedOther[gifname] = true  // Save from garbage collection.
+					o.UsedOther[meanname] = true // Save from garbage collection.
 
-			_, err := os.Stat(gifname)
-			if err == nil {
-				log.Printf("Already exists: %q", gifname)
-				continue
-			}
+					v1.NewProducts[daysAgo] = Products{
+						MovieName:    gifname,
+						MovieModTime: time.Now(),
+						MeanName:     meanname,
+						MeanModTime:  time.Now(),
+					}
+				}
+				mutex.Unlock()
 
-			log.Printf("Building gif from %d inputs estimatedSize %d (%.3f MiB): %q", len(inputs), estimatedSize, float64(estimatedSize)/1024/1024, gifname)
-			if *qM {
-				log.Printf("qM: not calling o.Build1Giffy")
-			} else {
-				o.Build1Giffy(inputs, tmpgif, gifname, meanname)
-			}
+				_, err := os.Stat(gifname)
+				if err == nil {
+					log.Printf("Already exists: %q", gifname)
+					done <- task
+					return
+				}
+
+				log.Printf("Building gif from %d inputs estimatedSize %d (%.3f MiB): %q", len(inputs), estimatedSize, float64(estimatedSize)/1024/1024, gifname)
+				if *qM {
+					log.Printf("qM: not calling o.Build1Giffy")
+				} else {
+					o.Build1Giffy(inputs, tmpgif, gifname, meanname)
+				}
+
+				done <- task
+			}(k1, v1, k2, v2)
+		}
+	}
+
+	// Now wait for them all to finish.
+	for _, v1 := range o.TagDayHash {
+		for _, _ = range v1.DayHash {
+			task := <-done
+			log.Printf("Task Finished: %s", task)
 		}
 	}
 }
 
 func (o *Survey) Build1Giffy(inputs []string, tmpgif, gifname, meanname string) (ok bool) {
-	runtime.Gosched()
 	ok = true
 	defer func() {
 		r := recover()
@@ -268,7 +307,6 @@ func (o *Survey) Build1Giffy(inputs []string, tmpgif, gifname, meanname string) 
 			log.Printf("Recovering after panic in BuildAnimatedGif %q: %v", gifname, r)
 			ok = false
 		}
-		runtime.Gosched()
 	}()
 	BuildAnimatedGif(inputs, 200*time.Millisecond, o.ConvertToModest, tmpgif, meanname)
 	err := os.Rename(tmpgif, gifname)
@@ -284,7 +322,6 @@ const HEI = 500
 var GREEN = image.NewUniform(color.NRGBA{20, 200, 20, 255})
 
 func (o *Survey) ConvertToModest(img image.Image, filename string) image.Image {
-	runtime.Gosched()
 	t := resize.Thumbnail(WID, HEI, img, resize.Bilinear)
 	b := t.Bounds()
 	width := b.Max.X - b.Min.X
@@ -318,7 +355,6 @@ func (o *Survey) ConvertToModest(img image.Image, filename string) image.Image {
 }
 
 func RenameFileForImageSize(spool string, filename string) (string, *SurveyRec) {
-	runtime.Gosched()
 	info, err := os.Stat(filename)
 	if err != nil {
 		log.Printf("RenameFileForImageSize cannot stat %q: %v", filename, err)
@@ -347,7 +383,7 @@ func (o *Survey) DumpProducts(w io.Writer) {
 		fmt.Fprintf(w, "TAG: %q\n", k1)
 
 		for i := 0; i < 14; i++ {
-			p, ok := k2.Products[i]
+			p, ok := k2.NewProducts[i]
 			if !ok {
 				continue
 			}
@@ -364,7 +400,7 @@ func (o *Survey) SortedWebTags() []string {
 	for k1, k2 := range o.TagDayHash {
 		active := false
 		for i := 0; i < 32; i++ {
-			p, ok := k2.Products[i]
+			p, ok := k2.NewProducts[i]
 			if ok && (p.MovieName != "" || p.MeanName != "") {
 				active = true
 				break
@@ -379,15 +415,17 @@ func (o *Survey) SortedWebTags() []string {
 }
 
 func (o *Survey) WriteWebPage(w io.Writer) {
+	title := fmt.Sprintf(`Carpe QRSS at %s`, time.Now().UTC().Format(time.UnixDate))
 	fmt.Fprintf(w, `<html>
 <head>
   <META NAME="ROBOTS" CONTENT="INDEX, NOFOLLOW">
-  <title>Carpe QRSS: %s</title>
+  <title>%s</title>
 </head>
 <body>
 
+<h3>%s</h3>
 <p>
-  <b>This is Alpha quality.</b>
+  <b>This is Experimental, Alpha quality.</b>
   I'm debugging with a small set of QRSS Grabber sources.
   I'll add more later.
   For each source, data is grouped by Zulu day.
@@ -403,11 +441,11 @@ func (o *Survey) WriteWebPage(w io.Writer) {
   Source is at <a href="https://github.com/strickyak/carpe-qrss">https://github.com/strickyak/carpe-qrss</a>.
   Site hosted in Digital Ocean.
 <p>
-  -- 73 de W6REK
+  -- 73 de %s
 <p>
 <br>
 <br>
-`, time.Now().Format(time.UnixDate))
+`, title, title, WHOM)
 	tags := o.SortedWebTags()
 	for _, tag := range tags {
 		fmt.Fprintf(w, "[<a href='#%s'>%s</a>] &nbsp;\n", tag, tag)
@@ -434,8 +472,8 @@ func (o *Survey) WriteWebPage(w io.Writer) {
 
 		v1 := o.TagDayHash[tag]
 		n := 0
-		for i := 0; i < 30; i++ {
-			p, ok := v1.Products[i]
+		for i := 0; i < 7; i++ {
+			p, ok := v1.NewProducts[i]
 			if !ok {
 				continue
 			}
@@ -449,12 +487,114 @@ func (o *Survey) WriteWebPage(w io.Writer) {
   <tr>
 `, i, P.Base(P.Dir(mean)), P.Base(mean), P.Base(P.Dir(movie)), P.Base(movie))
 			n++
-			if n > 4 {
+			if n > 2 {
 				break
 			}
 		}
 	}
 	fmt.Fprintf(w, `
+</body></html>
+`)
+}
+
+func (o *Survey) SortedWebTagsForDay(daysAgo int) []string {
+	var tags []string
+	for k1, k2 := range o.TagDayHash {
+		p, ok := k2.NewProducts[daysAgo]
+		if ok && (p.MovieName != "" || p.MeanName != "") {
+			tags = append(tags, k1)
+		}
+	}
+	sort.Strings(tags)
+	return tags
+}
+
+func (o *Survey) WriteWebPageForDay(w io.Writer, daysAgo int) {
+	todaysDay := time.Now().Unix() / 86400
+	thatDay := todaysDay - int64(daysAgo)
+	thatDate := time.Unix(thatDay*86400, 0).UTC()
+	thatDateIsoDay := thatDate.Format("2006-01-02")
+
+	title := fmt.Sprintf(`[[%d]] Carpe QRSS for <big><b>%s</b></big> (at %s)`, daysAgo, thatDateIsoDay, time.Now().UTC().Format(time.UnixDate))
+
+	fmt.Fprintf(w, `<html>
+<head>
+  <META NAME="ROBOTS" CONTENT="INDEX, NOFOLLOW">
+  <title>%s</title>
+</head>
+<body>
+
+<h3>%s</h3>
+<p>
+  <b>This is Experimental, Alpha quality.</b>
+  I'm debugging with a small set of QRSS Grabber sources.
+  I'll add more later.
+  For each source, data is grouped by Zulu day.
+  For each source on each zulu day, there are two images, composed of frames
+  which are images seized from qrss grabbers.
+  The image on the left is the average of all the frames;
+  the one on the right is an animated GIF made up of all the frames.
+  A caption in green tells what the source was, prehaps the band,
+  and roughly what time the image was made or seized.
+<p>
+  <b>All times and dates are Zulu.</b>
+<p>
+  Source is at <a href="https://github.com/strickyak/carpe-qrss">https://github.com/strickyak/carpe-qrss</a>.
+  Site hosted in Digital Ocean.
+<p>
+  -- 73 de %s
+<p>
+<br>
+<br>
+`, title, title, WHOM)
+	tags := o.SortedWebTagsForDay(daysAgo)
+	for _, tag := range tags {
+		fmt.Fprintf(w, "[<a href='#%s.%d'>%s</a>] &nbsp;\n", tag, daysAgo, tag)
+	}
+	fmt.Fprintf(w, "<p><br><br>\n")
+
+	fmt.Fprintf(w, `
+<table cellpadding=5 border=1>
+  <tr>
+    <th>Days<br>Ago</th>
+    <th align=center>RGB-wise Average of Frames</th>
+    <th align=center>Animated GIF of Frames</th>
+  </tr>
+`)
+
+	for _, tag := range tags {
+		shortTag := strings.Split(tag, "~")[0]
+		fmt.Fprintf(w, `
+  <tr>
+    <th>Days<br>Ago</th>
+    <th colspan=2 align=center><a name="%s.%d"><tt> <big><big><big>%s &nbsp; &nbsp; </big></big></big> %q </tt></a></th>
+  </tr>
+`, tag, daysAgo, shortTag, tag)
+
+		v1 := o.TagDayHash[tag]
+		//n := 0
+		//for i := 0; i < 30; i++ {
+		p, ok := v1.NewProducts[daysAgo]
+		if !ok {
+			continue
+		}
+		movie := p.MovieName
+		mean := p.MeanName
+		fmt.Fprintf(w, `
+  <tr>
+    <th align=center ><big>%d</big></th>
+    <td><img src="%s/%s"></td>
+    <td><img src="%s/%s"></td>
+  <tr>
+`, daysAgo, P.Base(P.Dir(mean)), P.Base(mean), P.Base(P.Dir(movie)), P.Base(movie))
+		//n++
+		//if n > 2 {
+		//break
+		//}
+		//}
+	}
+	fmt.Fprintf(w, `
+  <hr> <hr> <hr>
 </body></html>
 `)
 }
