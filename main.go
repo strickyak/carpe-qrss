@@ -11,7 +11,7 @@ import (
 
 var DELAY = flag.Duration("delay", 8*time.Minute, "delay between fetch rounds")
 var SPOOL = flag.String("spool", "spool/", "prefix for created filenames")
-var BIND = flag.String("bind", ":1919", "where to bind web server")
+var BIND = flag.String("bind", ":7899", "where to bind web server")
 
 func main() {
 	flag.Parse()
