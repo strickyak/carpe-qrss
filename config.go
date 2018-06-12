@@ -43,6 +43,8 @@ var Targets = []Target{
 	{"ea8bvp_4h", "http://www.qsl.net/ea8bvp/hf2.jpg"},
 
 	{"la5goa", "http://la5goa.manglet.net/grabber/lopshot1.jpg"},
+
+	{"n2nxz", "http://www.qsl.net/n2nxz/hf1.jpg"},
 }
 
 type CropMargins []int
