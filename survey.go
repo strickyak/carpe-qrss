@@ -369,10 +369,10 @@ func (o *Survey) ConvertToModest(img image.Image, filename string) image.Image {
 		}
 	}
 	if secsWithinDay >= 0 {
-		for i := 0; i < 4; i++ {
-			for j := 0; j < 4; j++ {
+		for i := 0; i < 6; i++ {
+			for j := 0; j < 6; j++ {
 				x := int(2 + (WID-8)*float64(secsWithinDay)/86400)
-				z.Set(x+i, HEI+21+j, YELLOW)
+				z.Set(x+i, HEI+19+j, YELLOW)
 			}
 		}
 	}
