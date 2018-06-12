@@ -320,15 +320,31 @@ const WID = 800
 const HEI = 500
 
 var GREEN = image.NewUniform(color.NRGBA{20, 200, 20, 255})
+var YELLOW = image.NewUniform(color.NRGBA{200, 200, 20, 255})
+
+const timestampJpgPattern = "^.*" + datePattern + "[.]jpg$"
+var timestampJpgMatch = regexp.MustCompile(timestampJpgPattern).FindStringSubmatch
 
 func (o *Survey) ConvertToModest(img image.Image, filename string) image.Image {
+	secsWithinDay := -1
+	m := timestampJpgMatch(filename)
+	if m != nil {
+		log.Printf("timestampJpgMatch: %#v", m)
+		t, err := time.Parse(timestampPattern, m[1])
+		log.Printf("timestampJpgMatch: %#v [%v]", t, err)
+		if err == nil {
+			secsWithinDay = int(t.UTC().Unix() % 86400)
+			log.Printf("timestampJpgMatch: %#v -> %d", t, secsWithinDay)
+		}
+	}
+
 	t := resize.Thumbnail(WID, HEI, img, resize.Bilinear)
 	b := t.Bounds()
 	width := b.Max.X - b.Min.X
 	height := b.Max.Y - b.Min.Y
 
 	zb := image.Rectangle{
-		Max: image.Point{WID, 20 + HEI},
+		Max: image.Point{WID, 25 + HEI},
 	}
 	z := image.NewRGBA(zb)
 	for x := 0; x < width; x++ {
@@ -348,6 +364,14 @@ func (o *Survey) ConvertToModest(img image.Image, filename string) image.Image {
 					z.Set(2*(i*7+c+10), 1+(HEI+2+2*r), GREEN)
 					z.Set(1+2*(i*7+c+10), 1+(HEI+2+2*r), GREEN)
 				}
+			}
+		}
+	}
+	if secsWithinDay >= 0 {
+		for i := 0; i < 4; i++ {
+			for j := 0; j < 4; j++ {
+				x := int(2 + (WID-8) * float64(secsWithinDay) / 86400)
+				z.Set(x+i, HEI+21+j, YELLOW)
 			}
 		}
 	}
