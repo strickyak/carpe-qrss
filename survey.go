@@ -466,9 +466,9 @@ func (o *Survey) WriteWebPage(w io.Writer) {
 		fmt.Fprintf(w, `
   <tr>
     <th>Days<br>Ago</th>
-    <th colspan=2 align=center><a name="%s"><tt> <big><big><big>%s &nbsp; &nbsp; </big></big></big> %q </tt></a></th>
+    <th colspan=2 align=center><a name="%s"><tt> <big><big><big>%s &nbsp; &nbsp; </big></big></big> <a href="%s.d/">%q</a> </tt></a></th>
   </tr>
-`, tag, shortTag, tag)
+`, tag, shortTag, tag, tag)
 
 		v1 := o.TagDayHash[tag]
 		n := 0
@@ -567,9 +567,9 @@ func (o *Survey) WriteWebPageForDay(w io.Writer, daysAgo int) {
 		fmt.Fprintf(w, `
   <tr>
     <th>Days<br>Ago</th>
-    <th colspan=2 align=center><a name="%s.%d"><tt> <big><big><big>%s &nbsp; &nbsp; </big></big></big> %q </tt></a></th>
+    <th colspan=2 align=center><a name="%s.%d"><tt> <big><big><big>%s &nbsp; &nbsp; </big></big></big> <a href="%s.d/">%q</a> </tt></a></th>
   </tr>
-`, tag, daysAgo, shortTag, tag)
+`, tag, daysAgo, shortTag, tag, tag)
 
 		v1 := o.TagDayHash[tag]
 		//n := 0
