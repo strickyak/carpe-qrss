@@ -45,6 +45,10 @@ var Targets = []Target{
 	{"la5goa", "http://la5goa.manglet.net/grabber/lopshot1.jpg"},
 
 	{"n2nxz", "http://www.qsl.net/n2nxz/hf1.jpg"},
+
+	{"wd4ah", "http://www.qsl.net/wd4ah/hf1.jpg"},
+
+	{"ok1fcx", "http://qsl.net/ok1fcx/hf1.jpg"},
 }
 
 type CropMargins []int
