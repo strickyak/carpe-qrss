@@ -201,7 +201,7 @@ func (o *Survey) handleSurveyFilename(filename string, info os.FileInfo) {
 	h2.Surveys = append(h2.Surveys, rec)
 }
 
-const GC_GRACE_HOURS = 24
+const GC_GRACE_HOURS = 2
 
 func (o *Survey) CollectGarbage() {
 	log.Printf("Start CollectGarbage [[[")
