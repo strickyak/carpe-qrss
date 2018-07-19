@@ -8,6 +8,7 @@ import (
 	"image/color"
 	"io"
 	"log"
+	"math/rand"
 	"os"
 	P "path/filepath"
 	"regexp"
@@ -22,8 +23,13 @@ import (
 )
 
 const WHOM = "W6REK"
+const MAX_GIF = 100  // Problems with Out Of Memory.
 
 const timestampPattern = "2006-01-02-150405"
+
+func init() {
+	rand.Seed(time.Now().Unix())
+}
 
 func DieIf(err error, args ...interface{}) {
 	if err != nil {
@@ -228,17 +234,21 @@ var qM = flag.Bool("qM", false, "DEBUG: quickly skip over movie code")
 
 func (o *Survey) BuildMovies(prefix string) {
 	var mutex sync.Mutex
+/*
 	done := make(chan string)
+*/
 
 	todaysDay := int(time.Now().Unix()) / 86400
 	for k1, v1 := range o.TagDayHash {
 		for k2, v2 := range v1.DayHash {
-			go func(k1 string, v1 *TagSurvey, k2 int, v2 *TagDaySurvey) {
+			/*go*/ func(k1 string, v1 *TagSurvey, k2 int, v2 *TagDaySurvey) {
 				task := fmt.Sprintf("%s:%d", k1, k2)
 				log.Printf("Task Starting: %s", task)
 
 				if len(v2.Surveys) < 1 {
+				/*
 					done <- task
+				*/
 					return
 				}
 
@@ -274,7 +284,9 @@ func (o *Survey) BuildMovies(prefix string) {
 				_, err := os.Stat(gifname)
 				if err == nil {
 					log.Printf("Already exists: %q", gifname)
+					/*
 					done <- task
+					*/
 					return
 				}
 
@@ -285,11 +297,14 @@ func (o *Survey) BuildMovies(prefix string) {
 					o.Build1Giffy(inputs, tmpgif, gifname, meanname)
 				}
 
+/*
 				done <- task
+*/
 			}(k1, v1, k2, v2)
 		}
 	}
 
+/*
 	// Now wait for them all to finish.
 	for _, v1 := range o.TagDayHash {
 		for _, _ = range v1.DayHash {
@@ -297,6 +312,20 @@ func (o *Survey) BuildMovies(prefix string) {
 			log.Printf("Task Finished: %s", task)
 		}
 	}
+*/
+}
+
+// ThinStrings drops 1 random input string.
+func ThinStrings(a []string) []string {
+	n := len(a)
+	r := rand.Intn(n)
+	z := make([]string, 0, n-1)
+	for i := 0; i < n; i++ {
+		if i != r {
+			z = append(z, a[i])
+		}
+	}
+	return z
 }
 
 func (o *Survey) Build1Giffy(inputs []string, tmpgif, gifname, meanname string) (ok bool) {
@@ -308,6 +337,10 @@ func (o *Survey) Build1Giffy(inputs []string, tmpgif, gifname, meanname string) 
 			ok = false
 		}
 	}()
+	for len(inputs) > MAX_GIF {
+		// Repeat dropping 1 string until right size.
+		inputs = ThinStrings(inputs)
+	}
 	BuildAnimatedGif(inputs, 200*time.Millisecond, o.ConvertToModest, tmpgif, meanname)
 	err := os.Rename(tmpgif, gifname)
 	DieIf(err, "rename", tmpgif, gifname)
