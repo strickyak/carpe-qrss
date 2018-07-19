@@ -15,8 +15,8 @@ var SPOOL = flag.String("spool", "spool/", "spool dir prefix")
 func main() {
 	flag.Parse()
 	s := carpe.NewSurvey(*SPOOL)
-	s.UsedOther[*SPOOL + "/index.html"] = true
-	s.UsedOther[*SPOOL + "index.html"] = true
+	s.UsedOther[*SPOOL+"/index.html"] = true
+	s.UsedOther[*SPOOL+"index.html"] = true
 	s.Walk()
 
 	s.BuildMovies("tmp")

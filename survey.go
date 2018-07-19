@@ -23,7 +23,7 @@ import (
 )
 
 const WHOM = "W6REK"
-const MAX_GIF = 100  // Problems with Out Of Memory.
+const MAX_GIF = 100 // Problems with Out Of Memory.
 
 const timestampPattern = "2006-01-02-150405"
 
@@ -234,9 +234,9 @@ var qM = flag.Bool("qM", false, "DEBUG: quickly skip over movie code")
 
 func (o *Survey) BuildMovies(prefix string) {
 	var mutex sync.Mutex
-/*
-	done := make(chan string)
-*/
+	/*
+		done := make(chan string)
+	*/
 
 	todaysDay := int(time.Now().Unix()) / 86400
 	for k1, v1 := range o.TagDayHash {
@@ -246,9 +246,9 @@ func (o *Survey) BuildMovies(prefix string) {
 				log.Printf("Task Starting: %s", task)
 
 				if len(v2.Surveys) < 1 {
-				/*
-					done <- task
-				*/
+					/*
+						done <- task
+					*/
 					return
 				}
 
@@ -285,7 +285,7 @@ func (o *Survey) BuildMovies(prefix string) {
 				if err == nil {
 					log.Printf("Already exists: %q", gifname)
 					/*
-					done <- task
+						done <- task
 					*/
 					return
 				}
@@ -297,22 +297,22 @@ func (o *Survey) BuildMovies(prefix string) {
 					o.Build1Giffy(inputs, tmpgif, gifname, meanname)
 				}
 
-/*
-				done <- task
-*/
+				/*
+					done <- task
+				*/
 			}(k1, v1, k2, v2)
 		}
 	}
 
-/*
-	// Now wait for them all to finish.
-	for _, v1 := range o.TagDayHash {
-		for _, _ = range v1.DayHash {
-			task := <-done
-			log.Printf("Task Finished: %s", task)
+	/*
+		// Now wait for them all to finish.
+		for _, v1 := range o.TagDayHash {
+			for _, _ = range v1.DayHash {
+				task := <-done
+				log.Printf("Task Finished: %s", task)
+			}
 		}
-	}
-*/
+	*/
 }
 
 // ThinStrings drops 1 random input string.
