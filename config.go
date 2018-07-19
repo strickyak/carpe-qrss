@@ -19,10 +19,10 @@ var Targets = []Target{
 	{"wa5djj_12", "http://qsl.net/wa5djj/hf7.jpg"},
 	{"wa5djj_10", "http://qsl.net/wa5djj/hf8.jpg"},
 
-	// {"wd4elg_20", "https://dl.dropboxusercontent.com/s/gba72cz0au66032/WD4ELG%2020M%20grabber%20%28REFRESH%20for%20latest%20grab%29.jpg"},
-	// {"wd4elg_30", "https://dl.dropboxusercontent.com/s/7djby65cbfh6hv7/WD4ELG%2030M%20grabber%20%28REFRESH%20for%20latest%20grab%29.jpg"},
-	// {"wd4elg_40", "https://dl.dropboxusercontent.com/s/ajhc4t640k7k67u/WD4ELG%2040M%20grabber%20%28REFRESH%20for%20latest%20grab%29.jpg"},
-	// {"wd4elg_80", "https://dl.dropboxusercontent.com/s/59ktcp48iie5i1m/WD4ELG%2080M%20grabber%20%28REFRESH%20for%20latest%20grab%29.jpg"},
+	{"wd4elg_20", "https://dl.dropboxusercontent.com/s/gba72cz0au66032/WD4ELG%2020M%20grabber%20%28REFRESH%20for%20latest%20grab%29.jpg"},
+	{"wd4elg_30", "https://dl.dropboxusercontent.com/s/7djby65cbfh6hv7/WD4ELG%2030M%20grabber%20%28REFRESH%20for%20latest%20grab%29.jpg"},
+	{"wd4elg_40", "https://dl.dropboxusercontent.com/s/ajhc4t640k7k67u/WD4ELG%2040M%20grabber%20%28REFRESH%20for%20latest%20grab%29.jpg"},
+	{"wd4elg_80", "https://dl.dropboxusercontent.com/s/59ktcp48iie5i1m/WD4ELG%2080M%20grabber%20%28REFRESH%20for%20latest%20grab%29.jpg"},
 
 	{"ve1vdm", "http://users.eastlink.ca/~ve1vdm/argocaptures/argo.jpg"},
 	{"zl2ik", "http://zl2ik.com/Argo.jpg"},
@@ -49,6 +49,8 @@ var Targets = []Target{
 	{"wd4ah", "http://www.qsl.net/wd4ah/hf1.jpg"},
 
 	{"ok1fcx", "http://qsl.net/ok1fcx/hf1.jpg"},
+
+	{"aa7us", "http://www.qsl.net/aa7us/hf3.jpg"},
 }
 
 type CropMargins []int
