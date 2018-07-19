@@ -27,6 +27,7 @@ import (
 	"image/draw"
 	"image/gif"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
 	"runtime/debug"
@@ -38,6 +39,10 @@ import (
 )
 
 type ImageConverter func(img image.Image, filename string) image.Image
+
+func sqrt64(a int64) int64 {
+	return int64(math.Sqrt(float64(a)))
+}
 
 func BuildAnimatedGif(filenames []string, delay time.Duration, converter ImageConverter, outgif string, outmean string) (failures int) {
 	var ms []*image.Paletted
@@ -73,9 +78,9 @@ func BuildAnimatedGif(filenames []string, delay time.Duration, converter ImageCo
 			for x := 0; x < xlen; x++ {
 				for y := 0; y < ylen; y++ {
 					cr, cg, cb, _ := pm.At(x+r.Min.X, y+r.Min.Y).RGBA()
-					sums[x*ylen*3+y*3+0] += int64(cr)
-					sums[x*ylen*3+y*3+1] += int64(cg)
-					sums[x*ylen*3+y*3+2] += int64(cb)
+					sums[x*ylen*3+y*3+0] += int64(cr) * int64(cr)
+					sums[x*ylen*3+y*3+1] += int64(cg) * int64(cg)
+					sums[x*ylen*3+y*3+2] += int64(cb) * int64(cb)
 				}
 			}
 		}
@@ -92,9 +97,9 @@ func BuildAnimatedGif(filenames []string, delay time.Duration, converter ImageCo
 			for y := 0; y < ylen; y++ {
 				// cr, cg, cb, ca := pm.At(x + r.Min.x, y + r.Min.y).Color()
 
-				cr := sums[x*ylen*3+y*3+0] / int64(len(ms))
-				cg := sums[x*ylen*3+y*3+1] / int64(len(ms))
-				cb := sums[x*ylen*3+y*3+2] / int64(len(ms))
+				cr := sqrt64(sums[x*ylen*3+y*3+0] / int64(len(ms)))
+				cg := sqrt64(sums[x*ylen*3+y*3+1] / int64(len(ms)))
+				cb := sqrt64(sums[x*ylen*3+y*3+2] / int64(len(ms)))
 				pm.Set(x+r.Min.X, y+r.Min.Y, color.NRGBA64{uint16(cr), uint16(cg), uint16(cb), 0xFFFF})
 			}
 		}
