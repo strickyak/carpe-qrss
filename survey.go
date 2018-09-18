@@ -23,7 +23,7 @@ import (
 )
 
 const WHOM = "W6REK"
-const MAX_GIF = 100 // Problems with Out Of Memory.
+const MAX_GIF = 200 // Problems with Out Of Memory.
 
 const timestampPattern = "2006-01-02-150405"
 
@@ -499,7 +499,7 @@ func (o *Survey) WriteWebPage(w io.Writer) {
   Source is at <a href="https://github.com/strickyak/carpe-qrss">https://github.com/strickyak/carpe-qrss</a>.
   Site hosted in Digital Ocean.
 <p>
-  -- 73 de %s
+  -- 7e3 de %s
 <p>
 <br>
 <br>
@@ -584,9 +584,6 @@ func (o *Survey) WriteWebPageForDay(w io.Writer, daysAgo int) {
 
 <h3>%s</h3>
 <p>
-  <b>This is Experimental, Alpha quality.</b>
-  I'm debugging with a small set of QRSS Grabber sources.
-  I'll add more later.
   For each source, data is grouped by Zulu day.
   For each source on each zulu day, there are two images, composed of frames
   which are images seized from qrss grabbers.
