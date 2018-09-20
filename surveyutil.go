@@ -19,28 +19,37 @@ func main() {
 	s := carpe.NewSurvey(*SPOOL)
 	s.UsedOther[*SPOOL+"/index.html"] = true
 	s.UsedOther[*SPOOL+"index.html"] = true
-	s.Walk()
-
-	s.BuildMovies("tmp")
-	s.CollectGarbage()
-
-	fd, err := os.Create(*SPOOL + "/index.html")
-	carpe.DieIf(err, "os.Create", *SPOOL+"/index.html")
-	w := bufio.NewWriter(fd)
-	// s.WriteWebPage(w)
-	redirect := `<!DOCTYPE html>
-	<html><head>
-	<meta http-equiv="refresh"
-            content="0; url=index0.html">
-	</head></html>`
-	fmt.Fprintln(w, redirect)
-	w.Flush()
-	fd.Close()
-
 	for i := 0; i < 8; i++ {
 		filename := fmt.Sprintf("%s/index%d.html", *SPOOL, i)
 		s.UsedOther[filename] = true
 		s.UsedOther[filepath.Clean(filename)] = true
+	}
+	log.Printf("walking")
+	s.Walk()
+	log.Printf("walked")
+
+	s.BuildMovies("tmp")
+	log.Printf("built movies")
+	s.CollectGarbage()
+	log.Printf("GCed")
+
+	{
+		fd, err := os.Create(*SPOOL + "/index.html")
+		carpe.DieIf(err, "os.Create", *SPOOL+"/index.html")
+		w := bufio.NewWriter(fd)
+		// s.WriteWebPage(w)
+		redirect := `<!DOCTYPE html>
+	<html><head>
+	<meta http-equiv="refresh"
+            content="0; url=index0.html">
+	</head></html>`
+		fmt.Fprintln(w, redirect)
+		w.Flush()
+		fd.Close()
+	}
+
+	for i := 0; i < 8; i++ {
+		filename := fmt.Sprintf("%s/index%d.html", *SPOOL, i)
 
 		fd, err := os.Create(filename)
 		carpe.DieIf(err, "os.Create", filename)
@@ -48,6 +57,7 @@ func main() {
 		s.WriteWebPageForDay(w, i)
 		w.Flush()
 		fd.Close()
+		log.Printf("wrote %q", filename)
 	}
 
 	log.Printf("surveyutil DONE.")
