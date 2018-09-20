@@ -11,9 +11,10 @@ import (
 	carpe "github.com/strickyak/carpe-qrss"
 )
 
-var DELAY = flag.Duration("delay", 15*time.Minute, "delay between fetch rounds")
+var DELAY = flag.Duration("delay", 5*time.Minute, "delay between fetch rounds")
 var SPOOL = flag.String("spool", "spool/", "prefix for created filenames")
 var BIND = flag.String("bind", ":7899", "where to bind web server")
+var GRABBERS_URL = flag.String("csv", "https://raw.githubusercontent.com/swharden/QRSSplus/master/grabbers.csv", "Grabbers csv file URL")
 
 func main() {
 	flag.Parse()
@@ -25,7 +26,7 @@ func main() {
 	carpe.StartWeb(*BIND, *SPOOL)
 
 	for {
-		carpe.Fetch(*SPOOL)
+		carpe.Fetch(*GRABBERS_URL, *SPOOL)
 		println("Sleeping...", DELAY.String())
 		time.Sleep(*DELAY)
 		println("Awake.")

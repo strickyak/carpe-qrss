@@ -4,11 +4,10 @@ import (
 	"encoding/csv"
 	"fmt"
 	"html"
+	"io"
 	"log"
 	"net/http"
 )
-
-const GRABBERS_URL = "https://raw.githubusercontent.com/swharden/QRSSplus/master/grabbers.csv"
 
 type Target struct {
 	Nick   string
@@ -83,6 +82,11 @@ var Crops = map[OriginalDim]CropMargins{
 }
 
 func GetTargetsViaURL(url string) []Target {
+	// return Targets
+	// // Disable http.Get because
+	// // panic: Bad csv ReadAll record on line 57: wrong number of fields (for GetTargetsViaURL "https://raw.githubusercontent.com/swharden/QRSSplus/master/grabbers.csv")
+
+	log.Printf("GetTargetsViaURL: %q", url)
 	resp, err := http.Get(url)
 	if err != nil {
 		log.Panicf("Bad http.Get: %v (for GetTargetsViaURL %q)", err, url)
@@ -92,10 +96,12 @@ func GetTargetsViaURL(url string) []Target {
 	}
 	r := csv.NewReader(resp.Body)
 	r.Comment = '#'
-	records, err := r.ReadAll()
+	// records, err := r.ReadAll()
+	records, err := ReadCsvLinesWithN(r, 7)
 	if err != nil {
 		log.Panicf("Bad csv ReadAll %v (for GetTargetsViaURL %q)", err, url)
 	}
+	log.Printf("GetTargetsViaURL got %d records", len(records))
 	var targets []Target
 	for i, rec := range records {
 		if len(rec) != 7 {
@@ -113,4 +119,22 @@ func GetTargetsViaURL(url string) []Target {
 		targets = append(targets, t)
 	}
 	return targets
+}
+
+func ReadCsvLinesWithN(r *csv.Reader, n int) ([][]string, error) {
+	var records [][]string
+	for {
+		rec, err := r.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		if len(rec) != n {
+			continue
+		}
+		records = append(records, rec)
+	}
+	return records, nil
 }

@@ -18,9 +18,10 @@ const TS_FORMAT = "2006-01-02-150405"
 var LastModified = make(map[string]string)
 var ETag = make(map[string]string)
 
-func Fetch(spool string) {
+func Fetch(grabbers_url string, spool string) {
 	runtime.Gosched()
-	for _, t := range Targets {
+	targets := GetTargetsViaURL(grabbers_url)
+	for _, t := range targets {
 		log.Println("GET", t.Nick, t.URL)
 		filename, status, err := Get(t, spool)
 		log.Println("...", status, err, filename)
