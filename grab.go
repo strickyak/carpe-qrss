@@ -3,6 +3,7 @@ package carpe
 import (
 	"bytes"
 	"fmt"
+	"hash/fnv"
 	"io"
 	"io/ioutil"
 	"log"
@@ -17,6 +18,13 @@ const TS_FORMAT = "2006-01-02-150405"
 // Map URL to Date String
 var LastModified = make(map[string]string)
 var ETag = make(map[string]string)
+
+func FetchEveryNSeconds(n uint, grabbers_url string, spool string) {
+	targets := GetTargetsViaURL(grabbers_url)
+	for _, t := range targets {
+		EveryNSeconds(t.URL, n, func() { Get(t, spool) })
+	}
+}
 
 func Fetch(grabbers_url string, spool string) {
 	runtime.Gosched()
@@ -96,4 +104,29 @@ func Get(t Target, spool string) (filename string, status int, err error) {
 	} else {
 		return "", resp.StatusCode, nil
 	}
+}
+
+func EveryNSeconds(key string, n uint, fn func()) {
+	hasher := fnv.New32()
+	hasher.Write([]byte(key))
+	h := hasher.Sum32()
+	offset := uint(h) % n
+	log.Printf("Offset is %d for %q", offset, key)
+
+	go func() {
+		for {
+			now := uint(time.Now().Unix()) % n
+			wait := (offset - now) % n
+			if wait == 0 {
+				wait = n
+			}
+
+			timer := time.NewTimer(time.Duration(wait) * time.Second)
+			<-timer.C
+			timer.Stop()
+
+			log.Printf("EveryNSeconds: Running %q offset %d at %v", key, offset, time.Now())
+			fn()
+		}
+	}()
 }

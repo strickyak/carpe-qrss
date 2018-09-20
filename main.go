@@ -25,12 +25,17 @@ func main() {
 
 	carpe.StartWeb(*BIND, *SPOOL)
 
-	for {
-		carpe.Fetch(*GRABBERS_URL, *SPOOL)
-		println("Sleeping...", DELAY.String())
-		time.Sleep(*DELAY)
-		println("Awake.")
-	}
+	carpe.FetchEveryNSeconds(600, *GRABBERS_URL, *SPOOL)
+	time.Sleep( /*forever*/ 999999999 * time.Second)
+
+	/*
+		for {
+			carpe.Fetch(*GRABBERS_URL, *SPOOL)
+			println("Sleeping...", DELAY.String())
+			time.Sleep(*DELAY)
+			println("Awake.")
+		}
+	*/
 }
 
 const DEAR_ROBOTS = `# robots.txt
