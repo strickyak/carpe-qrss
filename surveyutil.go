@@ -5,9 +5,11 @@ package main
 import (
 	"bufio"
 	"flag"
+	"fmt"
 	"github.com/strickyak/carpe-qrss"
 	"log"
 	"os"
+	"path/filepath"
 )
 
 var SPOOL = flag.String("spool", "spool/", "spool dir prefix")
@@ -21,19 +23,32 @@ func main() {
 
 	s.BuildMovies("tmp")
 	s.CollectGarbage()
-	// s.DumpProducts(os.Stderr)
+
 	fd, err := os.Create(*SPOOL + "/index.html")
 	carpe.DieIf(err, "os.Create", *SPOOL+"/index.html")
 	w := bufio.NewWriter(fd)
-
-	s.WriteWebPage(w)
-	//for i := 0; i < 3; i++ {
-	// s.WriteWebPageForDay(w, i)
-	////}
-	//s.WriteWebPageForDay(w, 0)
-	//s.WriteWebPageForDay(w, 1)
-
+	// s.WriteWebPage(w)
+	redirect := `<!DOCTYPE html>
+	<html><head>
+	<meta http-equiv="refresh"
+            content="0; url=index0.html">
+	</head></html>`
+	fmt.Fprintln(w, redirect)
 	w.Flush()
 	fd.Close()
+
+	for i := 0; i < 8; i++ {
+		filename := fmt.Sprintf("%s/index%d.html", *SPOOL, i)
+		s.UsedOther[filename] = true
+		s.UsedOther[filepath.Clean(filename)] = true
+
+		fd, err := os.Create(filename)
+		carpe.DieIf(err, "os.Create", filename)
+		w := bufio.NewWriter(fd)
+		s.WriteWebPageForDay(w, i)
+		w.Flush()
+		fd.Close()
+	}
+
 	log.Printf("surveyutil DONE.")
 }

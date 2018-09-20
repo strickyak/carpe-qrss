@@ -472,88 +472,88 @@ func (o *Survey) SortedWebTags() []string {
 	return tags
 }
 
-func (o *Survey) WriteWebPage(w io.Writer) {
-	title := fmt.Sprintf(`Carpe QRSS at %s`, time.Now().UTC().Format(time.UnixDate))
-	fmt.Fprintf(w, `<html>
-<head>
-  <META NAME="ROBOTS" CONTENT="INDEX, NOFOLLOW">
-  <title>%s</title>
-</head>
-<body>
-
-<h3>%s</h3>
-<p>
-  <b>This is Experimental, Alpha quality.</b>
-  I'm debugging with a small set of QRSS Grabber sources.
-  I'll add more later.
-  For each source, data is grouped by Zulu day.
-  For each source on each day, there are two images, composed of frames
-  which are images seized from qrss grabbers.
-  The image on the left is the average of all the frames;
-  the one on the right is an animated GIF made up of all the frames.
-  A caption in green tells what the source was, prehaps the band,
-  and roughly what time the image was made or seized.
-<p>
-  <b>All times and dates are Zulu.</b>
-<p>
-  Source is at <a href="https://github.com/strickyak/carpe-qrss">https://github.com/strickyak/carpe-qrss</a>.
-  Site hosted in Digital Ocean.
-<p>
-  -- 7e3 de %s
-<p>
-<br>
-<br>
-`, title, title, WHOM)
-	tags := o.SortedWebTags()
-	for _, tag := range tags {
-		fmt.Fprintf(w, "[<a href='#%s'>%s</a>] &nbsp;\n", tag, tag)
-	}
-	fmt.Fprintf(w, `<p><br><br>\n`)
-
-	fmt.Fprintf(w, `
-<table cellpadding=5 border=1>
-  <tr>
-    <th>Days<br>Ago</th>
-    <th align=center>RGB-wise Average of Frames</th>
-    <th align=center>Animated GIF of Frames</th>
-  </tr>
-`)
-
-	for _, tag := range tags {
-		shortTag := strings.Split(tag, "~")[0]
-		fmt.Fprintf(w, `
-  <tr>
-    <th>Days<br>Ago</th>
-    <th colspan=2 align=center><a name="%s"><tt> <big><big><big>%s &nbsp; &nbsp; </big></big></big> <a href="%s.d/">%q</a> </tt></a></th>
-  </tr>
-`, tag, shortTag, tag, tag)
-
-		v1 := o.TagDayHash[tag]
-		n := 0
-		for i := 0; i < 7; i++ {
-			p, ok := v1.NewProducts[i]
-			if !ok {
-				continue
-			}
-			movie := p.MovieName
-			mean := p.MeanName
-			fmt.Fprintf(w, `
-  <tr>
-    <th align=center ><big>%d</big></th>
-    <td><img src="%s/%s"></td>
-    <td><img src="%s/%s"></td>
-  <tr>
-`, i, P.Base(P.Dir(mean)), P.Base(mean), P.Base(P.Dir(movie)), P.Base(movie))
-			n++
-			if n > 2 {
-				break
-			}
-		}
-	}
-	fmt.Fprintf(w, `
-</body></html>
-`)
-}
+//func (o *Survey) WriteWebPage(w io.Writer) {
+//	title := fmt.Sprintf(`Carpe QRSS at %s`, time.Now().UTC().Format(time.UnixDate))
+//	fmt.Fprintf(w, `<html>
+//<head>
+//  <META NAME="ROBOTS" CONTENT="INDEX, NOFOLLOW">
+//  <title>%s</title>
+//</head>
+//<body>
+//
+//<h3>%s</h3>
+//<p>
+//  <b>This is Experimental, Alpha quality.</b>
+//  I'm debugging with a small set of QRSS Grabber sources.
+//  I'll add more later.
+//  For each source, data is grouped by Zulu day.
+//  For each source on each day, there are two images, composed of frames
+//  which are images seized from qrss grabbers.
+//  The image on the left is the average of all the frames;
+//  the one on the right is an animated GIF made up of all the frames.
+//  A caption in green tells what the source was, prehaps the band,
+//  and roughly what time the image was made or seized.
+//<p>
+//  <b>All times and dates are Zulu.</b>
+//<p>
+//  Source is at <a href="https://github.com/strickyak/carpe-qrss">https://github.com/strickyak/carpe-qrss</a>.
+//  Site hosted in Digital Ocean.
+//<p>
+//  -- 7e3 de %s
+//<p>
+//<br>
+//<br>
+//`, title, title, WHOM)
+//	tags := o.SortedWebTags()
+//	for _, tag := range tags {
+//		fmt.Fprintf(w, "[<a href='#%s'>%s</a>] &nbsp;\n", tag, tag)
+//	}
+//	fmt.Fprintf(w, `<p><br><br>\n`)
+//
+//	fmt.Fprintf(w, `
+//<table cellpadding=5 border=1>
+//  <tr>
+//    <th>Days<br>Ago</th>
+//    <th align=center>RGB-wise Average of Frames</th>
+//    <th align=center>Animated GIF of Frames</th>
+//  </tr>
+//`)
+//
+//	for _, tag := range tags {
+//		shortTag := strings.Split(tag, "~")[0]
+//		fmt.Fprintf(w, `
+//  <tr>
+//    <th>Days<br>Ago</th>
+//    <th colspan=2 align=center><a name="%s"><tt> <big><big><big>%s &nbsp; &nbsp; </big></big></big> <a href="%s.d/">%q</a> </tt></a></th>
+//  </tr>
+//`, tag, shortTag, tag, tag)
+//
+//		v1 := o.TagDayHash[tag]
+//		n := 0
+//		for i := 0; i < 7; i++ {
+//			p, ok := v1.NewProducts[i]
+//			if !ok {
+//				continue
+//			}
+//			movie := p.MovieName
+//			mean := p.MeanName
+//			fmt.Fprintf(w, `
+//  <tr>
+//    <th align=center ><big>%d</big></th>
+//    <td><img src="%s/%s"></td>
+//    <td><img src="%s/%s"></td>
+//  <tr>
+//`, i, P.Base(P.Dir(mean)), P.Base(mean), P.Base(P.Dir(movie)), P.Base(movie))
+//			n++
+//			if n > 2 {
+//				break
+//			}
+//		}
+//	}
+//	fmt.Fprintf(w, `
+//</body></html>
+//`)
+//}
 
 func (o *Survey) SortedWebTagsForDay(daysAgo int) []string {
 	var tags []string
@@ -573,7 +573,7 @@ func (o *Survey) WriteWebPageForDay(w io.Writer, daysAgo int) {
 	thatDate := time.Unix(thatDay*86400, 0).UTC()
 	thatDateIsoDay := thatDate.Format("2006-01-02")
 
-	title := fmt.Sprintf(`[[%d]] Carpe QRSS for <big><b>%s</b></big> (at %s)`, daysAgo, thatDateIsoDay, time.Now().UTC().Format(time.UnixDate))
+	title := fmt.Sprintf(`[%d days ago] Carpe QRSS for <big><b>%s</b></big> (at %s)`, daysAgo, thatDateIsoDay, time.Now().UTC().Format(time.UnixDate))
 
 	fmt.Fprintf(w, `<html>
 <head>
@@ -583,6 +583,18 @@ func (o *Survey) WriteWebPageForDay(w io.Writer, daysAgo int) {
 <body>
 
 <h3>%s</h3>
+<p>
+  <tt><b><big>
+  LINKS TO DAYS AGO: &nbsp;
+`, title, title)
+
+	for i := 0; i < 8; i++ {
+		fmt.Fprintf(w, ` <a href="index%d.html">[%d]</a> &nbsp; `, i, i)
+	}
+
+	fmt.Fprintf(w, `
+  </big></b></tt>
+<br>
 <p>
   For each source, data is grouped by Zulu day.
   For each source on each zulu day, there are two images, composed of frames
@@ -601,7 +613,7 @@ func (o *Survey) WriteWebPageForDay(w io.Writer, daysAgo int) {
 <p>
 <br>
 <br>
-`, title, title, WHOM)
+`, WHOM)
 	tags := o.SortedWebTagsForDay(daysAgo)
 	for _, tag := range tags {
 		fmt.Fprintf(w, "[<a href='#%s.%d'>%s</a>] &nbsp;\n", tag, daysAgo, tag)
