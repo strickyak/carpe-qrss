@@ -22,12 +22,14 @@ var ETag = make(map[string]string)
 func FetchEveryNSeconds(n uint, grabbers_url string, spool string) {
 	targets := GetTargetsViaURL(grabbers_url)
 	for _, t := range targets {
+		localT := t
 		log.Printf("new: Nick %q url %q", t.Nick, t.URL)
-		EveryNSeconds(t.Nick, n, func() { Get(t, spool) })
+		EveryNSeconds(t.Nick, n, func() { Get(localT, spool) })
 	}
 	for _, t := range Targets {
+		localT := t
 		log.Printf("old: Nick %q url %q", t.Nick, t.URL)
-		EveryNSeconds(t.Nick, n, func() { Get(t, spool) })
+		EveryNSeconds(t.Nick, n, func() { Get(localT, spool) })
 	}
 }
 
@@ -61,6 +63,8 @@ func Get(t Target, spool string) (filename string, status int, err error) {
 		Timeout: 20 * time.Second,
 	}
 
+	runtime.Gosched()
+	log.Printf("getting %q", t.URL)
 	resp, err := c.Do(req)
 	runtime.Gosched()
 	if err != nil {
@@ -105,6 +109,7 @@ func Get(t Target, spool string) (filename string, status int, err error) {
 			filename = newname
 		}
 
+		log.Printf("got %q", filename)
 		return filename, resp.StatusCode, nil
 	} else {
 		return "", resp.StatusCode, nil
