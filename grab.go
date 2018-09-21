@@ -26,11 +26,13 @@ func FetchEveryNSeconds(n uint, grabbers_url string, spool string) {
 		log.Printf("new: Nick %q url %q", t.Nick, t.URL)
 		EveryNSeconds(t.Nick, n, func() { Get(localT, spool) })
 	}
-	for _, t := range Targets {
-		localT := t
-		log.Printf("old: Nick %q url %q", t.Nick, t.URL)
-		EveryNSeconds(t.Nick, n, func() { Get(localT, spool) })
-	}
+	/*
+		for _, t := range Targets {
+			localT := t
+			log.Printf("old: Nick %q url %q", t.Nick, t.URL)
+			EveryNSeconds(t.Nick, n, func() { Get(localT, spool) })
+		}
+	*/
 }
 
 func Fetch(grabbers_url string, spool string) {
