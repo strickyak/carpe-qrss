@@ -11,7 +11,7 @@ ln -s /opt/carpe.spool ./spool
 su --command "
   while date;
   do
-    find /opt/carpe.spool/ -type f -mtime +2 -print | xargs  rm -f
+    find /opt/carpe.spool/ -type f -mtime +2 -print0 | xargs -0 rm -f
     ./surveyutil >/tmp/survey.log 2>&1
     sleep 300
   done &" strick
