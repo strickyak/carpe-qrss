@@ -113,8 +113,10 @@ const datePattern = "(" + d4 + d2 + d2 + d6 + ")"
 const widthHeightPattern = "([0-9]+)x([0-9]+)"
 
 const primaryPattern = "^(.+)[.]" + widthHeightPattern + "[.]" + datePattern + "[.]jpg$"
+//const stackPattern = "^(.+)[.]" + widthHeightPattern + "[.]" + datePattern + "[.]jpg[.]png$"
 
 var primaryMatch = regexp.MustCompile(primaryPattern).FindStringSubmatch
+//var stackMatch = regexp.MustCompile(stackPattern).FindStringSubmatch
 
 // Originals filenames always end in `.jpg` (regardless of their image type).
 func ParseFilenameForPrimary(filename string, info os.FileInfo) *SurveyRec {
@@ -170,22 +172,15 @@ func (o *Survey) handleSurveyFilename(filename string, info os.FileInfo) {
 		return // Don't process directories.
 	}
 
-	/*
-		dir := P.Dir(filename)
-		base := P.Base(filename)
-
-		if strings.HasSuffix(filename, ".png") {
-			// Keep the newer one.
-			if info.ModTime().After(MeanModTime....)...ddt
-		}
-	*/
-
 	rec := ParseFilenameForPrimary(filename, info)
 	if rec == nil {
 		o.SeenOther[filename] = true
 		log.Printf("Not Primary: %q", filename)
 		return
 	}
+	// Mark possible stack names.
+	stackname := P.Join(P.Dir(filename), "stack." + P.Base(filename) + ".png")
+	o.UsedOther[stackname] = true
 
 	tagAndShape := fmt.Sprintf("%s~%dx%d", rec.Tag, rec.Width, rec.Height)
 	day := int(rec.Time.Unix() / 86400)
@@ -220,7 +215,7 @@ func (o *Survey) CollectGarbage() {
 			hoursOld := time.Since(info.ModTime()).Hours()
 			if hoursOld < GC_GRACE_HOURS {
 				log.Printf("Grace for %q; age is %v hours", filename, hoursOld)
-				continue // Grace time, keep garbage 24 hours.
+				continue // Grace time
 			}
 			log.Printf("Removing garbage: %q", filename)
 			err = os.Remove(filename)
@@ -334,6 +329,7 @@ func (o *Survey) Build1Giffy(inputs []string, tmpgif, gifname, meanname string) 
 		r := recover()
 		if r != nil {
 			log.Printf("Recovering after panic in BuildAnimatedGif %q: %v", gifname, r)
+			debug.PrintStack()
 			ok = false
 		}
 	}()
